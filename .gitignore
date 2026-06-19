@@ -5,9 +5,11 @@
 /npps4.egg-info
 /util/sampledata
 /venv
+.codex/
 
 *.bin
 *.pyc
 /*.ipynb
 /config.toml
 /maintenance.txt
+/pyrefly.toml
