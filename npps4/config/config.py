@@ -37,6 +37,13 @@ try:
 except IOError as e:
     raise Exception("Unable to load server private key. Double-check your configuration.") from e
 
+try:
+    import java  # type: ignore
+
+    IS_CHAQUOPY = True
+except ImportError:
+    IS_CHAQUOPY = False
+
 
 def get_data_directory():
     global ROOT_DIR
@@ -103,7 +110,7 @@ def inject_server_info():
 
 
 def load_module_from_file(file: str, modulename: str):
-    if sys.platform == "android":
+    if IS_CHAQUOPY:
         return importlib.import_module(modulename)
     return types.SimpleNamespace(**runpy.run_path(file))
 
