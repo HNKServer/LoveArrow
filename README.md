@@ -32,7 +32,11 @@ For other operations, please refer to the original README: [README_Origin.md](ht
 
 You can download ZH-CN Android data packs and CN Android client from here : [Android-CN](https://mega.nz/folder/X7JB3bwI#L9eLbOQsCLMkSK0TO3_hfw)
 
+This client requires port 8080
+
 你可以从此处下载安卓端中文数据包和安卓端国服客户端：[Android-CN](https://mega.nz/folder/X7JB3bwI#L9eLbOQsCLMkSK0TO3_hfw)
+
+此客户端需要的端口号为 8080
 
 ## Credits & Special Thanks
 
