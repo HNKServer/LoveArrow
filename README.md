@@ -14,7 +14,7 @@ Basically just the original NPPS4 with CN client support.
 
 All for ZH language support and convenience.
 
-基本上就是原版的 NPPS4 加上了中文客户端支持。
+基本上就是原版的 NPPS4 加上了国服客户端支持。
 
 一切都是为了支持中文语言和便捷。
 
