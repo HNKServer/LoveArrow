@@ -1,0 +1,17 @@
+# Android/Chaquopy native Pydantic v2 pins.
+#
+# Target runtime:
+#   Chaquopy Python: 3.13
+#   Android wheel tags: cp313-cp313-android_24_arm64_v8a and
+#                       cp313-cp313-android_24_x86_64
+#
+# Why this pair:
+#   Pydantic 2.11.10 depends on pydantic-core 2.33.2, and pypi.flet.dev has
+#   prebuilt Android cp313 wheels for pydantic-core 2.33.2. Do not replace this
+#   with pydantic-core 2.47.0 unless you also move to a Pydantic release that
+#   explicitly requires that exact core version.
+pydantic==2.11.10
+pydantic-core==2.33.2
+
+# Flet provides cp313 Android wheels for greenlet 3.5.1. It is required by SQLAlchemy asyncio.
+greenlet==3.5.1

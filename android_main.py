@@ -1,12 +1,16 @@
-# This script serve as main entrypoint for Chaquopy-based Android environment.
+# Android-specific NPPS4 entrypoint for Chaquopy.
 #
-# The idiom is:
-# setup_server()
-# start_server() in another thread
-# stop_server()
+# Important: do NOT use Alembic on Android. Alembic is path-oriented and
+# expects env.py and migration scripts to exist as normal files. In Chaquopy,
+# bundled Python modules may live inside the APK/AssetFinder and are not stable
+# filesystem paths. The Android wrapper initializes the server state database
+# directly from SQLAlchemy metadata instead.
+
+from __future__ import annotations
 
 import asyncio
 import os
+import sqlite3
 import traceback
 import urllib.parse
 
@@ -17,41 +21,33 @@ import npps4.config.config
 npps4.config.config._override_script_mode(False)
 
 had_run_once = False
-
-
-def _get_alembic_config():
-    import alembic.config
-
-    target_dir = npps4.config.config.BUNDLE_DIR or npps4.config.config.ROOT_DIR
-    alembic_config = alembic.config.Config(os.path.join(target_dir, "alembic.ini"))
-    script_location = alembic_config.get_alembic_option("script_location", "npps4/alembic")
-    alembic_config.set_section_option("alembic", "script_location", os.path.join(target_dir, script_location))
-    return alembic_config
-
-
-def run_migrations():
-    # Exception has to be made: Importing here reduces time needed for bootstrap script.
-    import alembic.command
-
-    alembic.command.upgrade(_get_alembic_config(), "head")
-
-
-def run_data_migrations():
-    import scripts.apply_fixes
-    import npps4.evloop
-
-    asyncio.run(scripts.apply_fixes.run_script([]), loop_factory=npps4.evloop.new_event_loop)
-
-
 server_instance = None
 
 
-def setup_server():
-    global had_run_once
+async def _create_server_schema_async() -> None:
+    """Create or migrate the mutable NPPS4 server DB on Android.
 
+    This is an Android-safe replacement for `alembic upgrade head`: it creates
+    the current-head schema from SQLAlchemy metadata, reconciles missing safe
+    tables/columns/indexes on older Android DBs, and stamps alembic_version with
+    the current head. It does not touch the read-only game master DBs.
+    """
+    import npps4.android_schema as android_schema
+
+    await android_schema.ensure_schema_async()
+
+
+def setup_server():
+    """Initialize the mutable server DB.
+
+    Desktop NPPS4 runs `alembic upgrade head`. On Android, run the
+    Android-safe schema initializer instead: it creates/reconciles the current
+    head schema and stamps alembic_version without requiring Alembic script
+    files to be addressable as real filesystem paths.
+    """
+    global had_run_once
     had_run_once = True
-    run_migrations()
-    run_data_migrations()
+    asyncio.run(_create_server_schema_async())
 
 
 def start_server(host: str = "127.0.0.1", port: int = 51376):
@@ -79,6 +75,13 @@ def stop_server():
     si.should_exit = True
 
 
+def _sqlite_db_path() -> str | None:
+    parsed = urllib.parse.urlparse(npps4.config.config.get_database_url())
+    if not (parsed.scheme == "sqlite" or parsed.scheme.startswith("sqlite+")):
+        return None
+    return os.path.join(npps4.config.config.ROOT_DIR, parsed.path[1:])
+
+
 def import_database(db: bytes):
     if had_run_once:
         return 1  # ERROR_SERVER_ALREADY_RUN_ONCE
@@ -86,38 +89,30 @@ def import_database(db: bytes):
     if not db.startswith(b"SQLite format 3\0"):
         return 2  # ERROR_INVALID_SQLITE3
 
-    parsed = urllib.parse.urlparse(npps4.config.config.get_database_url())
-    if not (parsed.scheme == "sqlite" or parsed.scheme.startswith("sqlite+")):
+    dbpath = _sqlite_db_path()
+    if dbpath is None:
         return 3  # ERROR_DATABASE_URL_NOT_SQLITE3
 
-    dbpath = os.path.join(npps4.config.config.ROOT_DIR, parsed.path[1:])
     try:
+        os.makedirs(os.path.dirname(dbpath), exist_ok=True)
         with open(dbpath, "wb") as f:
             f.write(db)
-
+        for suffix in ("-shm", "-wal"):
             try:
-                os.remove(dbpath + "-shm")
+                os.remove(dbpath + suffix)
             except FileNotFoundError:
                 pass
-            try:
-                os.remove(dbpath + "-wal")
-            except FileNotFoundError:
-                pass
-
-            return 0  # Ok
+        return 0  # Ok
     except Exception as e:
         traceback.print_exception(e)
         return 4  # ERROR_UNKNOWN
 
 
 def export_database():
-    import sqlite3
-
-    parsed = urllib.parse.urlparse(npps4.config.config.get_database_url())
-    if not (parsed.scheme == "sqlite" or parsed.scheme.startswith("sqlite+")):
+    dbpath = _sqlite_db_path()
+    if dbpath is None:
         return None
 
-    dbpath = os.path.join(npps4.config.config.ROOT_DIR, parsed.path[1:])
     try:
         with sqlite3.connect(f"file:{urllib.parse.quote(dbpath)}?mode=ro", timeout=60, uri=True) as conn:
             return conn.serialize()
@@ -130,21 +125,16 @@ def nuke_database():
     if had_run_once:
         return 1  # ERROR_SERVER_ALREADY_RUN_ONCE
 
-    parsed = urllib.parse.urlparse(npps4.config.config.get_database_url())
-    if not (parsed.scheme == "sqlite" or parsed.scheme.startswith("sqlite+")):
+    dbpath = _sqlite_db_path()
+    if dbpath is None:
         return 3  # ERROR_DATABASE_URL_NOT_SQLITE3
 
-    dbpath = os.path.join(npps4.config.config.ROOT_DIR, parsed.path[1:])
-
-    try:
-        os.remove(dbpath)
-    except FileNotFoundError:
-        pass
-    try:
-        os.remove(dbpath + "-shm")
-    except FileNotFoundError:
-        pass
-    try:
-        os.remove(dbpath + "-wal")
-    except FileNotFoundError:
-        pass
+    for path in (dbpath, dbpath + "-shm", dbpath + "-wal"):
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
+            traceback.print_exception(e)
+            return 4
+    return 0

@@ -5,6 +5,8 @@ import pydantic
 from .. import const
 from .. import idol
 from .. import util
+from ..system import accessory
+from ..system import accessory_model
 from ..system import achievement
 from ..system import advanced
 from ..system import album
@@ -18,10 +20,76 @@ from ..system import unit_model
 from ..system import user
 
 
-class UnitAccessoryInfoResponse(pydantic.BaseModel):
-    accessory_list: list
-    wearing_info: list
-    especial_create_flag: bool
+class UnitAccessoryInfoResponse(accessory_model.AccessoryAllInfo):
+    pass
+
+
+class UnitAccessoryMaterialAllResponse(accessory_model.AccessoryMaterialAllInfo):
+    pass
+
+
+class UnitAccessoryTabResponse(accessory_model.AccessoryTabListInfo):
+    pass
+
+
+class UnitAccessoryWearItem(pydantic.BaseModel):
+    accessory_owning_user_id: int
+    unit_owning_user_id: int
+
+
+class UnitAccessoryWearRequest(pydantic.BaseModel):
+    wear: list[UnitAccessoryWearItem] = pydantic.Field(default_factory=list)
+    remove: list[UnitAccessoryWearItem] = pydantic.Field(default_factory=list)
+
+
+class UnitAccessoryFavoriteRequest(pydantic.BaseModel):
+    accessory_owning_user_id: int
+    favorite_flag: bool | int
+
+
+class UnitAccessoryMaterialAmount(pydantic.BaseModel):
+    accessory_id: int
+    amount: int
+
+
+class UnitCreateAccessoryRequest(pydantic.BaseModel):
+    unit_owning_user_ids: list[int]
+
+
+class UnitCreateAccessoryResponse(common.TimestampMixin, user.UserDiffMixin):
+    created_accessory: accessory_model.AccessoryListInfo
+    use_game_coin: int
+    reward_box_flag: bool
+    present_cnt: int
+    unit_removable_skill: unit_model.RemovableSkillOwningInfo
+
+
+class UnitMergeAccessoryRequest(pydantic.BaseModel):
+    base_accessory_owning_user_id: int
+    accessory_owning_user_ids: list[int] = pydantic.Field(default_factory=list)
+    material_list: list[UnitAccessoryMaterialAmount] = pydantic.Field(default_factory=list)
+    merge_type: int | str = 1
+
+
+class UnitMergeAccessoryResponse(common.TimestampMixin, user.UserDiffMixin):
+    before: accessory_model.AccessoryListInfo
+    after: accessory_model.AccessoryListInfo
+    use_game_coin: int
+    gain_exp: int
+    rank_up_count_after: int
+    is_enough: bool
+    rest_exp: int
+
+
+class UnitSaleAccessoryRequest(pydantic.BaseModel):
+    accessory_owning_user_ids: list[int] = pydantic.Field(default_factory=list)
+    material_list: list[UnitAccessoryMaterialAmount] = pydantic.Field(default_factory=list)
+
+
+class UnitSaleAccessoryResponse(common.TimestampMixin, user.UserDiffMixin):
+    total: int
+    reward_box_flag: bool
+    present_cnt: int
 
 
 class UnitDeckPositionInfoResponse(pydantic.BaseModel):
@@ -173,9 +241,106 @@ class UnitRemovableSkillSellResponse(pydantic.BaseModel):
 
 @idol.register("unit", "accessoryAll")
 async def unit_accessoryall(context: idol.SchoolIdolUserParams) -> UnitAccessoryInfoResponse:
-    # TODO
-    util.stub("unit", "accessoryAll", context.raw_request_data)
-    return UnitAccessoryInfoResponse(accessory_list=[], wearing_info=[], especial_create_flag=False)
+    current_user = await user.get_current(context)
+    return UnitAccessoryInfoResponse.model_validate((await accessory.get_accessory_all_info(context, current_user)).model_dump())
+
+
+@idol.register("unit", "accessoryMaterialAll")
+async def unit_accessorymaterialall(context: idol.SchoolIdolUserParams) -> UnitAccessoryMaterialAllResponse:
+    current_user = await user.get_current(context)
+    return UnitAccessoryMaterialAllResponse.model_validate(
+        (await accessory.get_accessory_material_all_info(context, current_user)).model_dump()
+    )
+
+
+@idol.register("unit", "accessoryTab")
+async def unit_accessorytab(context: idol.SchoolIdolUserParams) -> UnitAccessoryTabResponse:
+    return UnitAccessoryTabResponse.model_validate((await accessory.get_accessory_tab_info(context)).model_dump())
+
+
+@idol.register("unit", "wearAccessory", batchable=False)
+async def unit_wearaccessory(context: idol.SchoolIdolUserParams, request: UnitAccessoryWearRequest) -> None:
+    current_user = await user.get_current(context)
+    await accessory.wear_accessories(
+        context,
+        current_user,
+        [(item.accessory_owning_user_id, item.unit_owning_user_id) for item in request.wear],
+        [(item.accessory_owning_user_id, item.unit_owning_user_id) for item in request.remove],
+    )
+
+
+@idol.register("unit", "favoriteAccessory", batchable=False)
+async def unit_favoriteaccessory(context: idol.SchoolIdolUserParams, request: UnitAccessoryFavoriteRequest) -> None:
+    current_user = await user.get_current(context)
+    await accessory.set_favorite(
+        context, current_user, request.accessory_owning_user_id, bool(request.favorite_flag)
+    )
+
+
+@idol.register("unit", "createAccessory", batchable=False)
+async def unit_createaccessory(
+    context: idol.SchoolIdolUserParams, request: UnitCreateAccessoryRequest
+) -> UnitCreateAccessoryResponse:
+    current_user = await user.get_current(context)
+    before_user = await user.get_user_info(context, current_user)
+    result = await accessory.create_from_units(context, current_user, request.unit_owning_user_ids)
+    return UnitCreateAccessoryResponse(
+        before_user_info=before_user,
+        after_user_info=await user.get_user_info(context, current_user),
+        created_accessory=await accessory.to_api_info(context, result.created),
+        use_game_coin=result.use_game_coin,
+        reward_box_flag=result.reward_box_flag,
+        present_cnt=await reward.count_presentbox(context, current_user),
+        unit_removable_skill=await unit.get_removable_skill_info_request(context, current_user),
+    )
+
+
+@idol.register("unit", "mergeAccessory", batchable=False)
+async def unit_mergeaccessory(
+    context: idol.SchoolIdolUserParams, request: UnitMergeAccessoryRequest
+) -> UnitMergeAccessoryResponse:
+    current_user = await user.get_current(context)
+    before_user = await user.get_user_info(context, current_user)
+    result = await accessory.merge_accessory(
+        context,
+        current_user,
+        request.base_accessory_owning_user_id,
+        request.accessory_owning_user_ids,
+        [(item.accessory_id, item.amount) for item in request.material_list],
+        request.merge_type,
+    )
+    return UnitMergeAccessoryResponse(
+        before_user_info=before_user,
+        after_user_info=await user.get_user_info(context, current_user),
+        before=result.before,
+        after=result.after,
+        use_game_coin=result.use_game_coin,
+        gain_exp=result.gain_exp,
+        rank_up_count_after=result.rank_up_count_after,
+        is_enough=result.is_enough,
+        rest_exp=result.rest_exp,
+    )
+
+
+@idol.register("unit", "saleAccessory", batchable=False)
+async def unit_saleaccessory(
+    context: idol.SchoolIdolUserParams, request: UnitSaleAccessoryRequest
+) -> UnitSaleAccessoryResponse:
+    current_user = await user.get_current(context)
+    before_user = await user.get_user_info(context, current_user)
+    result = await accessory.sale_accessories(
+        context,
+        current_user,
+        request.accessory_owning_user_ids,
+        [(item.accessory_id, item.amount) for item in request.material_list],
+    )
+    return UnitSaleAccessoryResponse(
+        before_user_info=before_user,
+        after_user_info=await user.get_user_info(context, current_user),
+        total=result.total,
+        reward_box_flag=result.reward_box_flag,
+        present_cnt=await reward.count_presentbox(context, current_user),
+    )
 
 
 @idol.register("unit", "deckInfo")

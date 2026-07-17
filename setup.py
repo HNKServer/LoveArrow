@@ -9,7 +9,13 @@ with open(os.path.join(os.path.dirname(__file__), "requirements.txt"), "r", enco
         version="%d.%d.%d" % npps4.version.NPPS4_VERSION,
         description="Null-Pointer Private Server",
         author="Miku AuahDark",
-        packages=["npps4"],
+        packages=setuptools.find_packages(),
+        include_package_data=True,
+        package_data={
+            "npps4.assets": ["*.db"],
+            "npps4.assets.cn_home_banner": ["*.png"],
+            "npps4.assets.cn_archive_access": ["*.json"],
+        },
         install_requires=["wheel", *map(str.strip, f)],
         entry_points={"console_scripts": ["npps4_script=npps4.script:entry"]},
     )

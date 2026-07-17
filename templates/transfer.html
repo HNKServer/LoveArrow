@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>游戏数据迁移</title>
+<style>
+body{margin:0;background:#fff5f8;color:#4b3340;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}
+main{max-width:720px;margin:auto;padding:22px}
+h1{color:#ef3f83;font-size:28px;margin:0 0 16px}.card{background:white;border:3px solid #f6a5c3;border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 4px 12px #eaa3bc55}
+label{display:block;font-weight:700;margin:10px 0 5px}input{box-sizing:border-box;width:100%;font-size:20px;padding:12px;border:2px solid #e9a5bf;border-radius:10px}
+button{width:100%;margin-top:12px;padding:13px;border:0;border-radius:12px;background:#f04484;color:white;font-size:19px;font-weight:700}.danger{background:#9b7281}.msg{background:#fff0b8;border-radius:10px;padding:12px;white-space:pre-wrap}.code{font-family:monospace;font-size:24px;font-weight:700;word-break:break-all;color:#d8266b}
+small{color:#806571;line-height:1.5}.status{font-weight:700;color:#d8266b}
+</style>
+</head>
+<body><main>
+<h1>游戏数据迁移</h1>
+{% if message %}<div class="msg">{{ message }}</div>{% endif %}
+<div class="card">
+<h2>导出当前进度</h2>
+<p>迁移 ID：<span class="code">{{ invite_code }}</span></p>
+<p>状态：<span class="status">{{ "已有有效迁移密码" if registered else "尚未生成迁移密码" }}</span></p>
+{% if generated_code %}<p>本次迁移密码：<span class="code">{{ generated_code }}</span></p>{% endif %}
+<form method="post" action="/transfer/reserve"><input type="hidden" name="t" value="{{ token }}"><button type="submit">生成 / 重新生成迁移密码</button></form>
+<form method="post" action="/transfer/abort"><input type="hidden" name="t" value="{{ token }}"><button class="danger" type="submit">作废现有迁移密码</button></form>
+<small>重新生成会立即使旧密码失效。迁移成功后密码也会自动失效。</small>
+</div>
+<div class="card">
+<h2>导入其他进度</h2>
+<form method="post" action="/transfer/execute">
+<input type="hidden" name="t" value="{{ token }}">
+<label for="hid">迁移 ID</label><input id="hid" name="handover_id" autocomplete="off" required>
+<label for="hcode">迁移密码</label><input id="hcode" name="handover_code" autocomplete="off" required>
+<button type="submit">执行数据迁移</button>
+</form>
+<small>迁移完成后请彻底关闭并重新启动游戏。</small>
+</div>
+</main></body></html>

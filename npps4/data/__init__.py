@@ -51,7 +51,11 @@ def get():
     if server_data is None or stat.st_mtime_ns > last_server_data_timestamp:
         try:
             with open(SERVER_DATA_PATH, "r", encoding="utf-8", newline="") as f:
-                serialized_data = schema.SerializedServerData.model_validate(json.load(f))
+                raw_server_data = json.load(f)
+                if not isinstance(raw_server_data, dict):
+                    util.log("server_data.json root is not an object; using empty defaults", util.logging.WARNING)
+                    raw_server_data = {}
+                serialized_data = schema.SerializedServerData.model_validate(raw_server_data)
                 new_server_data = ServerData(
                     json_schema_link=serialized_data.json_schema_link,
                     badwords=serialized_data.badwords,

@@ -6,9 +6,18 @@ from .. import data
 from .. import idol
 from .. import util
 from ..db import main
+from ..config import config
 
 
 def _determine_en_path(context: idol.BasicSchoolIdolContext, path: str, path_en: str | None, /):
+    # The CN 9.7.1 client reports an English UI language, but its resource
+    # archive is still the unprefixed CN namespace.  Treating that language as
+    # the GL English profile made the server return en/... secretbox textures;
+    # the GL overlay then injected later-version .texb files and the CN native
+    # renderer trapped.  Region/profile wins over language for CN resources.
+    if config.is_cn_compat():
+        return path
+
     if path_en is None or context.is_lang_jp():
         return path
 
@@ -144,13 +153,27 @@ async def get_all_secretbox_data_response(context: idol.BasicSchoolIdolContext, 
         )
         member_category_list.setdefault(secretbox.member_category, []).append(page)
 
-    return sorted(
+    result = sorted(
         (
             secretbox_model.SecretboxAllMemberCategory(member_category=k, page_list=v)
             for k, v in member_category_list.items()
         ),
         key=lambda k: k.member_category,
     )
+    if config.is_cn_compat():
+        sample_paths: list[str] = []
+        for secretbox in list(server_data.secretbox_data.values())[:4]:
+            sample_paths.append(_determine_en_path(context, secretbox.menu_asset, secretbox.menu_asset_en))
+            for index, path in enumerate(secretbox.animation_asset_layout[:2]):
+                path_en = secretbox.animation_asset_layout_en[index] if index < len(secretbox.animation_asset_layout_en) else None
+                sample_paths.append(_determine_en_path(context, path, path_en))
+        util.log(
+            "CN secretbox asset contract",
+            f"categories={len(result)}",
+            f"sample_paths={sample_paths}",
+            severity=util.logging.WARNING,
+        )
+    return result
 
 
 def get_secretbox_data(secretbox_id: int):

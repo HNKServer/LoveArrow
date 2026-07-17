@@ -48,13 +48,34 @@ async def mark_login_bonus(context: idol.BasicSchoolIdolContext, user: main.User
     await context.db.main.flush()
 
 
+async def _builtin_default_rewards(day: int, month: int, year: int, context):
+    # Last-resort protocol guard.  The normal implementation is the bundled or
+    # user-edited external/login_bonus.py provider, repaired at workspace startup.
+    # This is not an empty/no-op response: it mirrors the bundled sample reward
+    # schedule so lbonus can still award and record a real daily login item if
+    # a user breaks their editable hook while the service is already running.
+    import datetime
+
+    delta = datetime.date(year, month, day) - datetime.date(1970, 1, 1)
+    match delta.days % 3:
+        case 0:
+            return (3000, 3, 20000, None)  # 20000 G
+        case 1:
+            return (3002, 2, 2500, None)  # 2500 Friend Points
+        case _:
+            return (3001, 4, 1, None)  # 1 Loveca
+
+
 async def get_calendar(context: idol.BasicSchoolIdolContext, year: int, month: int):
     weekday, days = calendar.monthrange(year, month)
     login_bonus_protocol = config.get_login_bonus_protocol()
+    get_rewards = getattr(login_bonus_protocol, "get_rewards", None)
+    if get_rewards is None:
+        get_rewards = _builtin_default_rewards
     result: list[LoginBonusCalendar] = []
 
     for day in range(1, days + 1):
-        add_type, item_id, amount, special = await login_bonus_protocol.get_rewards(day, month, year, context)
+        add_type, item_id, amount, special = await get_rewards(day, month, year, context)
         item_base = item_model.BaseItem(add_type=const.ADD_TYPE(add_type), item_id=item_id, amount=amount)
         dotw = (weekday + day) % 7
         lbonus_calendar = LoginBonusCalendar(

@@ -1,0 +1,44 @@
+NPPS4 v4.41 validation
+UTC 2026-07-11 15:58:41
+
+[1] Python compileall
+PASS: compileall
+
+[2] Static CN contract guard
+CN contract guard OK
+
+[3] Exact CN master counts
+achievement_m=6399
+live_setting_m=1894
+live_track_m=366
+normal_live_m=972
+scenario_m=445
+event_scenario_m=711
+multi_unit_scenario_m=50
+achievement_columns=31
+
+[4] Runtime import, schema, content migration, reward processing, endpoint construction
+CN archive preflight warning iOS extracted directory is not configured; download/getUrl will return URLs that 404 if the client requests extracted files
+CN archive preflight warning Android archive directory contains no recognized <type>_<id>_<order>.zip files: /mnt/data/v441_runtime_test/list_CN_Android
+CN archive preflight warning Android extracted directory is not configured; download/getUrl will return URLs that 404 if the client requests extracted files
+CN post-service content sync user_id=1 active_achievements=240 release_achievements=24 event_scenarios=711 multi_unit_scenarios=50
+docs_url=/main.php/api
+first_sync=PostServiceSyncResult(added_active_achievements=240, added_release_achievements=24, event_scenarios_granted=711, multi_unit_scenarios_granted=50, applied=True)
+second_sync=PostServiceSyncResult(added_active_achievements=0, added_release_achievements=0, event_scenarios_granted=0, multi_unit_scenarios_granted=0, applied=False)
+achievement_accomplished=72 achievement_new=6
+reward_types={3001: 1, 5000: 28, 5300: 48, 3005: 2, 5500: 3, 5100: 1}
+event_groups=103 event_chapters=711
+multi_groups=50 multi_chapters=50
+PASS: runtime regression
+
+[5] Full lbonus/execute response construction
+CN archive preflight warning iOS extracted directory is not configured; download/getUrl will return URLs that 404 if the client requests extracted files
+CN archive preflight warning Android archive directory contains no recognized <type>_<id>_<order>.zip files: /mnt/data/v441_runtime_test/list_CN_Android
+CN archive preflight warning Android extracted directory is not configured; download/getUrl will return URLs that 404 if the client requests extracted files
+CN post-service content sync user_id=1 active_achievements=240 release_achievements=24 event_scenarios=711 multi_unit_scenarios=50
+accomplished_achievement_list=72
+added_achievement_list=6
+PASS: lbonus/execute
+
+[6] Remove generated Python bytecode
+PASS: source tree cleaned

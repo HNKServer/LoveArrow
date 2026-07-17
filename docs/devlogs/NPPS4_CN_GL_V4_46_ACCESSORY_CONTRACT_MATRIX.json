@@ -1,0 +1,58 @@
+{
+  "build_id": "v4.46-cn-gl-accessory-full-cycle",
+  "event_story": {
+    "derived_from_honoka": false,
+    "honoka_reference_used_for": [
+      "CN response shape",
+      "event banner remap 10001->38",
+      "event banner remap 221->215"
+    ],
+    "fork_stateful_actions": ["status", "open", "startup", "reward"],
+    "current_master_provider": "cn_content_master",
+    "gl_future_requirement": "active-profile event master provider",
+    "llsif_at_home_required": false
+  },
+  "honoka_accessory": {
+    "accessoryAll": "hardcoded level/max/rank/favorite",
+    "accessoryMaterialAll": "empty",
+    "accessoryTab": "static JSON",
+    "wearAccessory": "partial persistence",
+    "favoriteAccessory": "non-persistent acknowledgement",
+    "createAccessory": "missing",
+    "mergeAccessory": "missing",
+    "saleAccessory": "missing"
+  },
+  "v4_46_endpoints": [
+    "accessoryAll",
+    "accessoryMaterialAll",
+    "accessoryTab",
+    "wearAccessory",
+    "favoriteAccessory",
+    "createAccessory",
+    "mergeAccessory",
+    "saleAccessory"
+  ],
+  "master_counts": {
+    "cn": {
+      "accessory_m": 336,
+      "accessory_level_m": 4895,
+      "accessory_level_limit_over_m": 12,
+      "accessory_lottery_cost_m": 21,
+      "accessory_lottery_group_m": 9,
+      "accessory_lottery_list_m": 288,
+      "accessory_special_m": 258
+    },
+    "gl": {
+      "accessory_m": 562,
+      "accessory_level_m": 8511,
+      "accessory_level_limit_over_m": 12,
+      "accessory_lottery_cost_m": 21,
+      "accessory_lottery_group_m": 9,
+      "accessory_lottery_list_m": 288,
+      "accessory_special_m": 484
+    }
+  },
+  "core_schema_equal_between_cn_and_gl": true,
+  "runtime_integration_tested_profiles": ["cn", "gl"],
+  "device_tested": false
+}

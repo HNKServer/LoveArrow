@@ -3,12 +3,8 @@ import fastapi
 from . import error
 from .core import register
 from .session import BasicSchoolIdolContext, SchoolIdolParams, SchoolIdolAuthParams, SchoolIdolUserParams
-from ..idoltype import Language, PlatformType, XMCVerifyMode
+from ..idoltype import Language, PlatformType, XMCVerifyMode, normalize_language
 
 
 def create_basic_context(request: fastapi.Request):
-    try:
-        lang = Language(request.headers.get("LANG", "en"))
-    except ValueError:
-        lang = Language.en
-    return BasicSchoolIdolContext(lang)
+    return BasicSchoolIdolContext(normalize_language(request.headers.get("LANG", "en")))

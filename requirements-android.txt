@@ -1,0 +1,23 @@
+# Android/Chaquopy dependency set: native Pydantic v2, no local v1 shim.
+#
+# NPPS4 itself is written for Pydantic v2 and Python >= 3.12. The wrapper uses
+# Chaquopy Python 3.13, which satisfies that requirement.
+#
+# Pydantic is pinned to 2.11.10 because that line depends on pydantic-core
+# 2.33.2, and pypi.flet.dev currently provides cp313 Android wheels for
+# pydantic-core 2.33.2 on both arm64-v8a and x86_64. See:
+#   tools/pydantic_core_android/README.md
+#   PYDANTIC_CORE_FLET_WHEELS.md
+aiosqlite<0.22
+fastapi>=0.128,<1
+honkypy @ https://github.com/DarkEnergyProcessor/honky-py/releases/download/0.2.0/honkypy-0.2.0-py3-none-any.whl
+httpx
+itsdangerous
+jinja2
+pycryptodomex==3.21.0
+pydantic==2.11.10
+pydantic-settings>=2,<3
+python-multipart
+sqlalchemy[asyncio]>=2
+greenlet==3.5.1
+uvicorn

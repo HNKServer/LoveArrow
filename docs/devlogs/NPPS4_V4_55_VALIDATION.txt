@@ -1,0 +1,81 @@
+NPPS4 v4.55 validation
+======================
+
+Scope
+-----
+- Finalize the CN home announcement carousel and WebView banner assets.
+- Remove the abandoned attempt to transplant the international Museum catalogue into the CN client.
+- Preserve native CN Museum behavior and the original CN download/package sequence.
+- Keep Android and PC Python service trees synchronized.
+
+Build
+-----
+BUILD_ID: v4.55-cn-banner-final-museum-cleanup
+Android versionCode: 437
+Android versionName: 0.4.35
+PC service marker: v4.55-cn-banner-final-museum-cleanup
+
+Home announcement banner
+------------------------
+- Front item 1 remains the data-transfer WebView page.
+- Remaining front items are active type-1 scouting banners derived from server_data.json.
+- The back side remains the official manga type-2 WebView page.
+- Data-transfer and manga thumbnails are packaged as dedicated server assets, not inserted into client ZIP packages.
+- The server resolves both the declared PNG paths and the CN client's appended `.imag` cache-key paths.
+- /download/getUrl reports the actual bundled image byte size.
+- /cn-extracted serves the same PNG bytes with image/png for both plain and `.imag` aliases.
+- Transfer image: 1914x616, RGBA, four outer corner pixels transparent.
+- Manga image: 623x241.
+
+Download-chain containment
+--------------------------
+- Client/content version remains 97.4.6.
+- android_extra_update_packages defaults to [].
+- No 99_0_116 or 99_0_117 is generated or registered.
+- No normal/full data package is modified, re-packed, or size-adjusted.
+- Operator-owned CN ZIP archives remain read-only.
+- Old NPPS4-generated Museum overlay files/directories are removed from the server workspace during backend initialization.
+
+Museum cleanup
+--------------
+Removed from both Android and PC source trees:
+- npps4/system/museum_bridge.py
+- npps4/tools/cn_museum_bridge.py
+- npps4/assets/cn_museum_bridge/
+- tools/cn_museum_bridge_toolkit/
+- merged Museum client DB/Lua generation and content-package overlay logic
+- Museum bridge config fields, diagnostics, and automatic login-bonus synchronization
+
+Retained behavior:
+- /museum/info remains the native NPPS4/CN route.
+- CN uses the bundled native honoka_main.db Museum master with 16 rows.
+- Existing user unlocks are filtered to IDs present in that native master.
+- Legacy automatic cross-region grant records and non-native unlock IDs are pruned, while legitimate native unlocks are preserved.
+- Existing configs are migrated by removing obsolete Museum bridge options and NPPS4-generated 116/117 entries; a backup is created when a change is made.
+
+Android editor regression guard
+-------------------------------
+- Draggable vertical and horizontal scrollbars remain present.
+- Dragging text/scrollbars does not force the keyboard open.
+- First stationary tap focuses and positions the cursor.
+- A second deliberate stationary tap opens the soft keyboard.
+
+Checks
+------
+PASS: Python compileall for Android Python tree
+PASS: Python compileall for PC Python tree
+PASS: tools/validate_v455.py for Android
+PASS: tools/validate_v455.py for PC
+PASS: tools/cn_contract_guard.py for Android
+PASS: tools/cn_contract_guard.py for PC
+PASS: Android/PC app/src/main/python SHA-256 parity (2299 files)
+PASS: native CN museum_contents_m row count = 16
+PASS: banner PNG dimensions/modes and transfer-image corner alpha
+PASS: setup.py sdist contains both banner PNGs and archive_access_manifest.json
+PASS: Kotlin editor brace and gesture-wiring static sanity
+
+Limitations
+-----------
+- No Android SDK/Gradle wrapper is available in this runtime, so an APK was not compiled here.
+- The full service import could not be used as a runtime test because this environment lacks the project's Cryptodome dependency.
+- Static/contract tests do not prove the CN client's native flip animation on a device; v4.55 specifically covers the missing `.imag` request path observed in the supplied log and requires the next device test for confirmation.

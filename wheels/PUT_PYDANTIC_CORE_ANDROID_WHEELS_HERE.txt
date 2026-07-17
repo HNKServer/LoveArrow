@@ -1,0 +1,6 @@
+Optional local wheel directory for native Pydantic v2.
+
+If Chaquopy cannot resolve pydantic-core for your selected Python/ABI, put
+Android-compatible cp313 wheels here and rebuild. The Gradle pip block passes
+--find-links to this directory and --only-binary=:all: to avoid unsupported
+source/Rust builds during Android packaging.

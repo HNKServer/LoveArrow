@@ -373,7 +373,12 @@ async def remove_unit(context: idol.SchoolIdolParams, user: main.User, unit_data
 
 
 # TODO: Move to consts
-TEAM_NAMING = {idoltype.Language.en: "Team {0}", idoltype.Language.jp: "ユニット{0}"}
+TEAM_NAMING = {
+    idoltype.Language.en: "Team {0}",
+    idoltype.Language.jp: "ユニット{0}",
+    idoltype.Language.zh_cn: "队伍{0}",
+    idoltype.Language.zh_tw: "隊伍{0}",
+}
 
 
 @overload
@@ -404,7 +409,7 @@ async def load_unit_deck(context: idol.BasicSchoolIdolContext, user: main.User, 
         if not ensure:
             return None
 
-        deck = main.UnitDeck(user_id=user.id, deck_number=index, name=TEAM_NAMING[context.lang].format(chr(index + 64)))
+        deck = main.UnitDeck(user_id=user.id, deck_number=index, name=TEAM_NAMING.get(context.lang, TEAM_NAMING[idoltype.Language.en]).format(chr(index + 64)))
         context.db.main.add(deck)
         await context.db.main.flush()
     else:

@@ -9,6 +9,7 @@ import os.path
 import time
 import traceback
 import typing
+import urllib.parse
 
 import fastapi
 import pydantic
@@ -23,6 +24,27 @@ from ..app import app
 from ..config import config
 
 from typing import Annotated, Any, Callable, TypeVar, Generic, cast
+
+
+def _parse_qsl_preserve_plus(text: str) -> dict[str, str]:
+    """Parse query/form-like text without converting '+' to space.
+
+    SIF's RSA/base64 fields often contain '+'.  When the client sends the
+    literal body ``request_data={...+...}`` instead of percent-encoding '+',
+    urllib.parse.parse_qsl would corrupt base64 by converting it to a space.
+    Starlette's form parser has already done that for real form submissions,
+    so model validators still repair spaces later; this helper avoids adding
+    extra damage when we recover from raw bodies.
+    """
+    out: dict[str, str] = {}
+    for chunk in text.split("&"):
+        if not chunk:
+            continue
+        key, sep, value = chunk.partition("=")
+        key = urllib.parse.unquote(key)
+        value = urllib.parse.unquote(value) if sep else ""
+        out[key] = value
+    return out
 
 
 class DummyModel(pydantic.RootModel[list]):
@@ -63,17 +85,179 @@ class Endpoint(Generic[_T, _U, _V]):
     profile: bool
 
 
+
+def _decode_request_data_value(value: Any) -> Any:
+    """Decode SIF/CN request_data variants into a Python object."""
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", "replace")
+    if not isinstance(value, str):
+        return value
+
+    text = value.strip()
+    if text == "":
+        return {}
+
+    # Direct JSON, or URL-encoded JSON.
+    for candidate in (text, urllib.parse.unquote_plus(text)):
+        candidate = candidate.strip()
+        if candidate.startswith("{") or candidate.startswith("["):
+            try:
+                return json.loads(candidate)
+            except Exception:
+                pass
+
+    # Form/query-string style payload.  Try a '+'-preserving parse first so
+    # raw base64 in request_data is not corrupted before the AuthkeyRequest
+    # normalizer gets a chance to repair/validate it.
+    parsed = _parse_qsl_preserve_plus(text)
+    if not parsed:
+        parsed = dict(urllib.parse.parse_qsl(text, keep_blank_values=True))
+    if parsed:
+        for key in ("request_data", "RequestData", "requestData", "data", "body"):
+            if key in parsed:
+                nested = _decode_request_data_value(parsed[key])
+                if isinstance(nested, dict):
+                    merged = dict(nested)
+                    for k, v in parsed.items():
+                        if k not in merged and k != key:
+                            merged[k] = v
+                    return merged
+                return nested
+        return parsed
+
+    return text
+
+
+def _pick_authkey_candidate(data: Any) -> dict[str, Any] | None:
+    """Best-effort extraction for CN /login/authkey request bodies."""
+    if not isinstance(data, dict):
+        return None
+
+    def walk(obj: Any) -> dict[str, Any] | None:
+        if isinstance(obj, dict):
+            # Common exact spellings first.
+            out: dict[str, Any] = {}
+            for key in ("dummy_token", "dummyToken", "dummy", "dummy_token_base64"):
+                if key in obj and obj[key] not in (None, ""):
+                    out["dummy_token"] = obj[key]
+                    break
+            for key in ("auth_data", "authData", "auth", "auth_data_base64"):
+                if key in obj and obj[key] not in (None, ""):
+                    out["auth_data"] = obj[key]
+                    break
+            if "dummy_token" in out:
+                out.setdefault("auth_data", "")
+                return out
+
+            # Unwrap request_data-like containers.
+            for key in ("request_data", "RequestData", "requestData", "data", "body"):
+                if key in obj:
+                    nested = _decode_request_data_value(obj[key])
+                    found = walk(nested)
+                    if found:
+                        return found
+
+            # Last resort: recurse into dict values.
+            for value in obj.values():
+                found = walk(_decode_request_data_value(value))
+                if found:
+                    return found
+        return None
+
+    found = walk(data)
+    if found:
+        for key in ("dummy_token", "auth_data"):
+            value = found.get(key)
+            if isinstance(value, str):
+                found[key] = value.replace(" ", "+")
+    return found
+
 def _get_request_data[U: pydantic.BaseModel](model: type[U]):
-    def actual_getter(
-        request_data: Annotated[pydantic.Json, fastapi.Form()],
-        xmc: Annotated[str | None, fastapi.Header(alias="X-Message-Code")],
+    async def actual_getter(
+        request: fastapi.Request,
+        request_data: str | None = fastapi.Form(default=None),
+        xmc: str | None = fastapi.Header(default=None, alias="X-Message-Code"),
     ):
-        return model.model_validate(request_data)
+        # Normal SIF clients send application/x-www-form-urlencoded with a
+        # JSON-valued `request_data` field.  The CN 9.7.x client is less strict
+        # around /login/authkey, and FastAPI's required Form+Json dependency
+        # rejects it with HTTP 422 before the endpoint can run.  Parse the form
+        # data manually and allow a small set of legacy equivalents while keeping
+        # normal Pydantic validation for the actual model.
+        raw: str | bytes | dict[str, Any] | None = request_data
+        form_snapshot: dict[str, Any] | None = None
+
+        if raw is None:
+            try:
+                form = await request.form()
+                form_snapshot = {str(k): v for k, v in form.multi_items()}
+                for key in ("request_data", "RequestData", "requestData", "data", "body"):
+                    value = form.get(key)
+                    if value is not None:
+                        raw = str(value)
+                        break
+                # Important for CN 9.7.x: if the transport decomposes the form
+                # into direct fields such as dummy_token/auth_data, use the whole
+                # form instead of validating an empty object and returning 422.
+                if raw is None and form_snapshot:
+                    raw = form_snapshot
+            except Exception:
+                raw = None
+
+        if raw is None:
+            try:
+                body = await request.body()
+                if body:
+                    raw = body
+            except RuntimeError:
+                raw = form_snapshot or None
+
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", "replace")
+
+        data: Any = _decode_request_data_value(raw) if raw not in (None, "") else {}
+
+        try:
+            return model.model_validate(data)
+        except pydantic.ValidationError as e:
+            # CN /login/authkey is unusually sensitive to request_data shape.
+            # Before letting FastAPI return an HTTP-level 422, search the parsed
+            # payload recursively for the RSA dummy token and normalize aliases.
+            if getattr(model, "__name__", "") == "AuthkeyRequest":
+                candidate = _pick_authkey_candidate(data)
+                if candidate is not None:
+                    return model.model_validate(candidate)
+                util.log(
+                    "AuthkeyRequest validation failed",
+                    {"data_type": type(data).__name__, "data": data, "errors": e.errors()},
+                    severity=util.logging.WARNING,
+                )
+            raise
 
     return actual_getter
 
 
 async def client_check(context: session.SchoolIdolParams, check_version: bool, xmc_verify: idoltype.XMCVerifyMode):
+    # CN 9.7.1 generates CROSS X-Message-Code in native code with a client-side
+    # key domain which is not the NPPS4 JP/GL base_xorpad/application_key pair.
+    # honoka-chan accepts these authenticated requests without reproducing that
+    # native CROSS digest.  Apply the same compatibility rule to CROSS endpoints
+    # only, after token/session finalization has succeeded.  SHARED XMC, login
+    # authentication and all non-CN clients keep the original NPPS4 checks.
+    if (
+        config.is_cn_compat()
+        and xmc_verify == idoltype.XMCVerifyMode.CROSS
+        and context.token is not None
+    ):
+        util.log(
+            "CN CROSS XMC compatibility",
+            f"endpoint={context.request.url.path}",
+            f"verified_session={context.token is not None}",
+            f"request_len={len(context.raw_request_data or b'')}",
+            f"received_xmc_present={context.x_message_code is not None}",
+            severity=util.logging.WARNING,
+        )
+        xmc_verify = idoltype.XMCVerifyMode.NONE
     # Maintenance check
     if config.is_maintenance():
         return fastapi.responses.JSONResponse(
@@ -112,13 +296,34 @@ async def client_check(context: session.SchoolIdolParams, check_version: bool, x
 
     # Client-Version check
     if check_version:
-        if config.get_latest_version() != context.client_version:
+        if not config.skip_generic_client_version_check() and config.get_latest_version() != context.client_version:
             return await build_response(context, None)
     return None
 
 
 _PossibleResponse = _V | list[_V] | error.IdolError | Exception | None
 
+
+
+def _cn_describe_batch_result(response_data: Any) -> str:
+    try:
+        if isinstance(response_data, dict):
+            details: list[str] = []
+            for key, value in list(response_data.items())[:20]:
+                if isinstance(value, list):
+                    details.append(f"{key}=list[{len(value)}]")
+                elif isinstance(value, dict):
+                    details.append(f"{key}=dict[{len(value)}]")
+                elif value is None:
+                    details.append(f"{key}=None")
+                else:
+                    details.append(f"{key}={type(value).__name__}")
+            return "dict " + ",".join(details)
+        if isinstance(response_data, list):
+            return f"list len={len(response_data)}"
+        return type(response_data).__name__
+    except Exception as e:
+        return f"describe_error={type(e).__name__}"
 
 def assemble_response_data(response: _PossibleResponse[_V], exclude_none: bool = False):
     if isinstance(response, error.IdolError):
@@ -161,11 +366,36 @@ async def build_response(
         jsondatastr = json.dumps(response_data)
         response = jsondatastr.encode("UTF-8")
 
+    server_rsa_label = getattr(context, "server_rsa_label", None)
     response_headers = {
-        "Server-Version": util.sif_version_string(config.get_latest_version()),
-        "X-Message-Sign": util.sign_message(response, context.x_message_code),
+        "Server-Version": config.get_latest_version_string(),
+        "X-Message-Sign": util.sign_message(
+            response, context.x_message_code, config.get_server_rsa_by_label(server_rsa_label)
+        ),
         "status_code": str(status_code),
     }
+
+    if config.use_cn_headers():
+        # CN client/honoka-chan compatibility headers.  Keep them gated behind
+        # [compat].region = "cn" so normal JP/Global clients are untouched.
+        next_nonce = getattr(context, "nonce", 0) + 1
+        token = getattr(context, "token_text", None) or ""
+        user_id = ""
+        if getattr(context, "token", None) is not None and context.token.user_id:
+            user_id = str(context.token.user_id)
+        response_headers.update(
+            {
+                "Content-Type": "application/json; charset=utf-8",
+                "X-Powered-By": "KLab Native APP Platform",
+                "server_version": "20120129",
+                "version_up": "0",
+                "user_id": user_id,
+                "authorize": (
+                    f"consumerKey={config.get_consumer_key()}&timeStamp={util.time()}&version=1.1"
+                    f"&token={token}&nonce={next_nonce}&user_id={user_id}&requestTimeStamp={util.time()}"
+                ),
+            }
+        )
 
     allow_compress = "gzip" in context.request.headers.get("accept-encoding", "identity").lower()
     if allow_compress and len(response) >= 65536:
@@ -495,6 +725,20 @@ async def api_endpoint(
     response = await client_check(context, True, idoltype.XMCVerifyMode.SHARED)
     raw_request_data = json.loads(context.raw_request_data)
 
+    if config.is_cn_compat():
+        try:
+            util.log(
+                "CN API batch:",
+                ", ".join(
+                    f"{item.get('module')}/{item.get('action')}"
+                    for item in raw_request_data
+                    if isinstance(item, dict)
+                ),
+                severity=util.logging.WARNING,
+            )
+        except Exception:
+            pass
+
     if response is None:
         endpoint_name_list = ["/api"]
 
@@ -556,11 +800,23 @@ async def api_endpoint(
                             _log_response_data(module, action, result)
 
                         current_response, status_code, http_code = assemble_response_data(result, endpoint.exclude_none)
+                        if config.is_cn_compat():
+                            util.log(
+                                f"CN API result: {module}/{action} status={status_code} "
+                                f"http={http_code} {_cn_describe_batch_result(current_response)}",
+                                severity=util.logging.WARNING,
+                            )
                     except Exception as e:
                         if not isinstance(e, error.IdolError):
                             util.log(f'Error processing "{module}/{action}"', severity=util.logging.ERROR, e=e)
 
                         current_response, status_code, http_code = assemble_response_data(e)
+                        if config.is_cn_compat():
+                            util.log(
+                                f"CN API result: {module}/{action} status={status_code} "
+                                f"http={http_code} {_cn_describe_batch_result(current_response)}",
+                                severity=util.logging.WARNING,
+                            )
 
                     response_data.append(
                         BatchResponse(result=current_response, status=status_code, timeStamp=util.time())
@@ -569,5 +825,10 @@ async def api_endpoint(
                 response = await build_response(context, response_data, False)
                 await cache.store_response(context, endpoint_name, response.body)
             else:
+                if config.is_cn_compat():
+                    util.log(
+                        f"CN API batch cache hit: {endpoint_name}",
+                        severity=util.logging.WARNING,
+                    )
                 response = await build_response(context, cached_response)
     return response

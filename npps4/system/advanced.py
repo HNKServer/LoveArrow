@@ -5,15 +5,19 @@ import functools
 import pydantic
 import sqlalchemy
 
+from . import accessory
 from . import award
 from . import background
+from . import cn_content_master
 from . import common
 from . import exchange
+from . import eventscenario
 from . import item
 from . import item_model
 from . import live
 from . import live_model
 from . import museum
+from . import multiunit
 from . import removable_skill
 from . import scenario
 from . import scenario_model
@@ -134,6 +138,9 @@ async def add_item(context: idol.BasicSchoolIdolContext, user: main.User, i: com
                 case _:
                     await item.add_item(context, user, i.item_id, i.amount)
                     return AddResult(True)
+        case const.ADD_TYPE.ACCESSORY:
+            await accessory.add_accessory(context, user, i.item_id, i.amount)
+            return AddResult(True)
         case const.ADD_TYPE.UNIT:
             if await unit.is_support_member(context, i.item_id):
                 return AddResult(await unit.add_supporter_unit(context, user, i.item_id, i.amount))
@@ -195,6 +202,10 @@ async def add_item(context: idol.BasicSchoolIdolContext, user: main.User, i: com
             return AddResult(await background.unlock_background(context, user, i.item_id))
         case const.ADD_TYPE.SCENARIO:
             return AddResult(await scenario.unlock(context, user, i.item_id))
+        case const.ADD_TYPE.EVENT_SCENARIO:
+            return AddResult(await eventscenario.unlock(context, user, i.item_id))
+        case const.ADD_TYPE.MULTI_UNIT_SCENARIO:
+            return AddResult(await multiunit.unlock(context, user, i.item_id))
         case const.ADD_TYPE.SCHOOL_IDOL_SKILL:
             await unit.add_unit_removable_skill(context, user, i.item_id, i.amount)
             return AddResult(True)
@@ -293,6 +304,8 @@ _ACHIEVEMENT_REWARD_REPLACE_CRITERIA: dict[
     const.ADD_TYPE.AWARD: award.has_award,
     const.ADD_TYPE.BACKGROUND: background.has_background,
     const.ADD_TYPE.SCENARIO: scenario.is_unlocked,
+    const.ADD_TYPE.EVENT_SCENARIO: eventscenario.is_unlocked,
+    const.ADD_TYPE.MULTI_UNIT_SCENARIO: multiunit.is_unlocked,
     const.ADD_TYPE.MUSEUM: museum.has,
 }
 
@@ -373,6 +386,22 @@ class TeamStatCalculator:
                 hp=0,
             )
         ] * 9
+
+    async def apply_accessory_stats(self, player_units: list[main.Unit]):
+        if not player_units:
+            return []
+        owner_id = player_units[0].user_id
+        owner = await self.context.db.main.get(main.User, owner_id)
+        if owner is None:
+            return [LiveDeckStats() for _ in player_units]
+        stat_map = await accessory.get_worn_accessory_stats(
+            self.context, owner, [unit_data.id for unit_data in player_units]
+        )
+        result: list[LiveDeckStats] = []
+        for unit_data in player_units:
+            smile, pure, cool = stat_map.get(unit_data.id, (0, 0, 0))
+            result.append(LiveDeckStats(smile=smile, cute=pure, cool=cool))
+        return result
 
     async def apply_sis_stats(self, player_units: list[main.Unit], stats: list[LiveDeckStats]):
         result: list[LiveDeckStats] = [LiveDeckStats() for _ in range(len(stats))]
@@ -530,8 +559,11 @@ class TeamStatCalculator:
         museum_stat = TeamStatCalculator.add_live_deck_stats_list(
             love_stat, TeamStatCalculator.apply_museum_stats(museum_param)
         )
-        sis_stat_base = await self.apply_sis_stats(player_units, museum_stat)
-        sis_stat = TeamStatCalculator.add_live_deck_stats_list(museum_stat, sis_stat_base)
+        accessory_stat = TeamStatCalculator.add_live_deck_stats_list(
+            museum_stat, await self.apply_accessory_stats(player_units)
+        )
+        sis_stat_base = await self.apply_sis_stats(player_units, accessory_stat)
+        sis_stat = TeamStatCalculator.add_live_deck_stats_list(accessory_stat, sis_stat_base)
         # TODO: SIS stat calculation is still inexact.
         leader_stat = await self.apply_leader_stats(player_units, sis_stat, player_units[4])
         guest_stat = await self.apply_leader_stats(player_units, sis_stat, guest)
@@ -636,6 +668,14 @@ async def get_item_name(
                     scenario_chapter_name = context.get_text(scenario_chapter_info.name, scenario_chapter_info.name_en)
                     scenario_name = context.get_text(scenario_info.title, scenario_info.title_en)
                     return f"{scenario_chapter_name} - {scenario_name}"
+        case const.ADD_TYPE.EVENT_SCENARIO:
+            info = cn_content_master.event_by_id(item_id)
+            if info is not None:
+                return context.get_text(info.title, info.title_en) or f"Event story #{item_id}"
+        case const.ADD_TYPE.MULTI_UNIT_SCENARIO:
+            info = cn_content_master.multi_by_id(item_id)
+            if info is not None:
+                return context.get_text(info.title, info.title_en) or f"Multi-unit story #{item_id}"
         case const.ADD_TYPE.SCHOOL_IDOL_SKILL:
             # Query unit_removable_skill_m
             unit_removable_skill_info = await unit.get_removable_skill_game_info(context, item_id)

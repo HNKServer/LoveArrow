@@ -7,12 +7,12 @@ import pydantic_settings
 
 from typing import Annotated
 
-_VERSION_TEST = re.compile(r"^\d+\.\d+$")
+_VERSION_TEST = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
 
 
 def _test_version_string(v: str):
     if re.match(_VERSION_TEST, v) is None:
-        raise ValueError('"client_version" must be in form of "major.minor".')
+        raise ValueError('"client_version" must be in form of "major.minor" or "major.minor.patch".')
     return v
 
 
@@ -71,6 +71,59 @@ class _DownloadInternal(pydantic.BaseModel):
     archive_root: Annotated[str, pydantic.Field(validation_alias=pydantic.AliasChoices("archive_root", "root"))] = ""
 
 
+class _DownloadCNArchive(pydantic.BaseModel):
+    # Flat archive directories as used by the CN client/honoka-chan, e.g.
+    # list_CN_Android/1_578_1.zip.  Paths are relative to project root unless
+    # absolute.
+    android_archives: str = ""
+    ios_archives: str = ""
+    android_extracted: str = ""
+    ios_extracted: str = ""
+    db_root: str = ""
+    # Android APK version used only for client capability gates.  It is
+    # intentionally separate from the 97.4.6 archive/content version below.
+    application_version: Annotated[str, pydantic.AfterValidator(_test_version_string)] = "9.7.1"
+    client_version: Annotated[str, pydantic.AfterValidator(_test_version_string)] = "97.4.6"
+    update_package_type: int = 99
+    server_info_override: str = "99_0_115.zip"
+    # Optional prepared replacement ZIPs.  If set, the backend serves these
+    # files as `server_info_override` instead of the archive-directory copy.
+    # This is useful for CN clients because config/server_info.json inside the
+    # ZIP is encrypted; operators usually prepare it once with libhonoka and
+    # let the server append it as the final 99-package.
+    android_server_info_override: str = ""
+    ios_server_info_override: str = ""
+    # Optional GL/JP CDN overlay used only when a CN extracted asset is absent.
+    # CN updates, package versions and databases continue to come from cn_archive.
+    gl_overlay_enabled: bool = True
+    gl_overlay_server: str = "https://ll.sif.moe/npps4_dlapi"
+    gl_overlay_shared_key: str = ""
+    gl_overlay_cache: str = ""
+    gl_overlay_timeout: float = 30.0
+    gl_overlay_try_language_fallback: bool = True
+    gl_overlay_negative_ttl: int = 300
+    # Optional locally generated CN update packages.  These are appended to the
+    # normal flat archive list without changing the retained CN content version.
+    android_extra_update_packages: list[str] = pydantic.Field(default_factory=list)
+    ios_extra_update_packages: list[str] = pydantic.Field(default_factory=list)
+    archive_access_manifest: str = "data/cn_update_overlays/archive_access_manifest.json"
+    # normal | all.  This is strictly the native CN Museum catalogue (16 rows);
+    # the deprecated museum_bridge_unlock_policy name is accepted only so old
+    # operator configs keep their intended all-unlock behavior.
+    museum_unlock_policy: Annotated[
+        str,
+        pydantic.Field(validation_alias=pydantic.AliasChoices(
+            "museum_unlock_policy", "museum_bridge_unlock_policy"
+        )),
+    ] = "all"
+    main_scenario_unlock_policy: str = "normal"
+    subscenario_unlock_policy: str = "normal"
+    live_unlock_policy: str = "normal"
+    # normal | archive | all | complete.  all/complete create Album catalog
+    # rows only; complete also marks Album progression flags.
+    album_catalog_unlock_policy: str = "normal"
+
+
 class _DownloadCustom(pydantic.BaseModel):
     file: str = ""
 
@@ -83,6 +136,7 @@ class _Download(pydantic.BaseModel):
     none: _DownloadNone = pydantic.Field(default_factory=_DownloadNone)
     n4dlapi: _DownloadNPPS4DLAPI = pydantic.Field(default_factory=_DownloadNPPS4DLAPI)
     internal: _DownloadInternal = pydantic.Field(default_factory=_DownloadInternal)
+    cn_archive: _DownloadCNArchive = pydantic.Field(default_factory=_DownloadCNArchive)
     custom: _DownloadCustom = pydantic.Field(default_factory=_DownloadCustom)
 
 
@@ -115,6 +169,31 @@ class _Advanced(pydantic.BaseModel):
         str, pydantic.Field(validation_alias=pydantic.AliasChoices("consumer_key", "consumerkey"))
     ] = "lovelive_test"
     verify_xmc: Annotated[bool, pydantic.Field(validation_alias=pydantic.AliasChoices("verify_xmc", "xmc"))] = True
+
+
+class _Compat(pydantic.BaseModel):
+    # Keep CN behavior isolated so ordinary JP/Global NPPS4 instances keep
+    # their original behavior. Valid values are currently "global" and "cn".
+    region: str = "global"
+    # Do not add extra /main.php headers by default. This is not part of NPPS4
+    # gameplay logic and should only be enabled when a CN client capture proves
+    # it is necessary. GHome responses are handled separately.
+    cn_main_headers: bool = False
+    cn_autocreate_ghome_users: bool = True
+    # Safe wrappers translate CN-only action names into NPPS4's own system layer.
+    # These are enabled by default because they preserve NPPS4 gameplay state.
+    cn_wrappers: bool = True
+    # Optional safety-net stubs for CN-only endpoints. Disabled by default so
+    # missing features stay visible instead of being silently papered over.
+    cn_optional_stubs: bool = False
+    # Timezone used for date-bound CN compatibility features such as daily
+    # special-live rotation and random-live attribute rotation. Use an IANA
+    # name. "auto" means Asia/Shanghai for CN profile and Asia/Tokyo
+    # otherwise. This is a timezone conversion, not a manual +8h offset.
+    daily_rotation_timezone: str = "auto"
+    # Loveca cost for live/continue and rlive/continue. SIF1-style continue
+    # consumes one Loveca by default while keeping the in-progress live session.
+    live_continue_loveca_cost: int = 1
 
 
 class _ImportExport(pydantic.BaseModel):
@@ -154,6 +233,7 @@ class ConfigData(pydantic_settings.BaseSettings):
     download: _Download = pydantic.Field(default_factory=_Download)
     game: _Game = pydantic.Field(default_factory=_Game)
     gameplay: _Gameplay = pydantic.Field(default_factory=_Gameplay)
+    compat: _Compat = pydantic.Field(default_factory=_Compat)
     advanced: _Advanced = pydantic.Field(default_factory=_Advanced)
     iex: _ImportExport = pydantic.Field(default_factory=_ImportExport)
 
@@ -185,6 +265,9 @@ class ConfigData(pydantic_settings.BaseSettings):
             case "custom":
                 if not dl.custom.file:
                     raise ValueError("Missing Python script for custom downloader")
+            case "cn_archive":
+                if not (dl.cn_archive.android_archives or dl.cn_archive.ios_archives):
+                    raise ValueError("Missing CN archive directory")
 
         return self
 

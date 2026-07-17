@@ -13,6 +13,8 @@ from ..system import ad_model
 from ..system import advanced
 from ..system import class_system as class_system_module
 from ..system import common
+from ..system import exchange
+from ..system import item
 from ..system import item_model
 from ..system import museum
 from ..system import reward
@@ -83,6 +85,50 @@ class RewardOpenRequest(pydantic.BaseModel):
     incentive_id: int
 
 
+class RewardSellUnitRequest(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra="allow")
+
+    incentive_id: int | None = None
+    incentive_ids: list[int] = pydantic.Field(default_factory=list)
+    incentive_id_list: list[int] = pydantic.Field(default_factory=list)
+    unit_owning_user_id: list[int] = pydantic.Field(default_factory=list)
+    unit_support_list: list[unit_model.SupporterInfoResponse] = pydantic.Field(default_factory=list)
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_fields(cls, data):
+        if not isinstance(data, dict):
+            return data
+        result = dict(data)
+        # CN/legacy clients and tools may use either singular or list-shaped
+        # names.  Normalize them without rejecting unknown request wrapper
+        # fields such as module/action/timeStamp.
+        if "incentive_ids" not in result and "incentive_id_list" in result:
+            result["incentive_ids"] = result["incentive_id_list"]
+        if "incentive_id" in result and "incentive_ids" not in result:
+            result["incentive_ids"] = [result["incentive_id"]]
+        if "unit_owning_user_ids" in result and "unit_owning_user_id" not in result:
+            result["unit_owning_user_id"] = result["unit_owning_user_ids"]
+        return result
+
+
+class RewardSellUnitDetail(pydantic.BaseModel):
+    unit_owning_user_id: int
+    unit_id: int
+    is_signed: bool
+    amount: int
+    price: int
+
+
+class RewardSellUnitResponse(common.TimestampMixin, user.UserDiffMixin):
+    total: int
+    detail: list[RewardSellUnitDetail]
+    reward_box_flag: bool
+    get_exchange_point_list: list[exchange.ExchangePointInfo]
+    unit_removable_skill: unit_model.RemovableSkillOwningInfo
+    present_cnt: int
+
+
 class RewardIncentiveItem(item_model.Item, RewardOpenRequest):
     model_config = pydantic.ConfigDict(extra="allow")
 
@@ -141,6 +187,157 @@ async def reward_rewardlist(context: idol.SchoolIdolUserParams, request: RewardL
         order=request.order,
         items=[await IncentiveItem.from_incentive(context, i) for i in incentive],
         ad_info=ad_model.AdInfo(),
+    )
+
+
+async def _sell_presentbox_unit_incentive(
+    context: idol.SchoolIdolUserParams,
+    current_user: main.User,
+    incentive_id: int,
+) -> tuple[RewardSellUnitDetail, dict[int, int], int]:
+    incentive = await reward.get_incentive(context, current_user, incentive_id)
+    if incentive is None:
+        raise idol.error.by_code(idol.error.ERROR_CODE_INCENTIVE_NONE)
+    if const.ADD_TYPE(incentive.add_type) != const.ADD_TYPE.UNIT:
+        raise idol.error.by_code(idol.error.ERROR_CODE_NO_UNIT_IS_SELLABLE)
+
+    item_data = await reward.resolve_incentive(context, current_user, incentive)
+    if not isinstance(item_data, unit_model.UnitSupportItem):
+        raise idol.error.by_code(idol.error.ERROR_CODE_NO_UNIT_IS_SELLABLE)
+
+    unit_info = await unit.get_unit_info(context, item_data.unit_id)
+    if unit_info is None:
+        raise idol.error.by_code(idol.error.ERROR_CODE_UNIT_NOT_EXIST)
+
+    # Present-box members are not active owned units yet, so compute a sale price
+    # from their serialized unit state rather than creating then deleting a unit.
+    if isinstance(item_data, unit_model.UnitItem):
+        levelup_pattern = await unit.get_unit_level_up_pattern(context, unit_info.unit_level_up_pattern_id)
+        stats = unit.calculate_unit_stats(unit_info, levelup_pattern, item_data.exp)
+        amount = 1
+        is_signed = item_data.is_signed
+    else:
+        levelup_pattern = await unit.get_unit_level_up_pattern(context, unit_info.unit_level_up_pattern_id)
+        stats = unit.calculate_unit_stats(unit_info, levelup_pattern, 0)
+        amount = max(item_data.amount, 1)
+        is_signed = False
+
+    total_price = stats.sale_price * amount
+    exchange_points: dict[int, int] = {}
+    if await exchange.should_give_sticker(context, item_data.unit_id):
+        exchange_point_id = await unit.get_exchange_point_id_by_unit_id(context, item_data.unit_id)
+        if exchange_point_id > 0:
+            exchange_points[exchange_point_id] = amount
+
+    await reward.remove_incentive(context, incentive)
+    return (
+        RewardSellUnitDetail(
+            unit_owning_user_id=0,
+            unit_id=item_data.unit_id,
+            is_signed=is_signed,
+            amount=amount,
+            price=total_price,
+        ),
+        exchange_points,
+        total_price,
+    )
+
+
+@idol.register("reward", "sellUnit", batchable=False)
+async def reward_sell_unit(context: idol.SchoolIdolUserParams, request: RewardSellUnitRequest) -> RewardSellUnitResponse:
+    """Sell members directly from the present box or delegate normal unit sale.
+
+    CN/legacy clients expose reward/sellUnit around the present-box flow.  When
+    an incentive id is provided, sell UNIT incentives without first opening them.
+    When the request carries active unit ids/support units instead, reuse the
+    same semantics as unit/sale while returning a reward-compatible response.
+    """
+
+    current_user = await user.get_current(context)
+    before_user = await user.get_user_info(context, current_user)
+    total = 0
+    detail: list[RewardSellUnitDetail] = []
+    exchange_point_totals: dict[int, int] = {}
+
+    incentive_ids = list(dict.fromkeys(request.incentive_ids + request.incentive_id_list))
+    if request.incentive_id is not None and request.incentive_id not in incentive_ids:
+        incentive_ids.insert(0, request.incentive_id)
+
+    if incentive_ids:
+        for incentive_id in incentive_ids:
+            sell_detail, exchange_points, price = await _sell_presentbox_unit_incentive(
+                context, current_user, incentive_id
+            )
+            detail.append(sell_detail)
+            total += price
+            for exchange_point_id, amount in exchange_points.items():
+                exchange_point_totals[exchange_point_id] = exchange_point_totals.get(exchange_point_id, 0) + amount
+    elif request.unit_owning_user_id or request.unit_support_list:
+        # Some clients/tools may route regular sale-shaped requests here.  Do the
+        # real sale locally instead of pretending there are no sellable units.
+        for unit_owning_user_id in request.unit_owning_user_id:
+            unit_data = await unit.get_unit(context, unit_owning_user_id)
+            unit.validate_unit(current_user, unit_data)
+            _, unit_stats = await unit.get_unit_data_full_info(context, unit_data)
+            detail.append(
+                RewardSellUnitDetail(
+                    unit_owning_user_id=unit_owning_user_id,
+                    unit_id=unit_data.unit_id,
+                    is_signed=unit_data.is_signed,
+                    amount=1,
+                    price=unit_stats.sale_price,
+                )
+            )
+            total += unit_stats.sale_price
+            if await exchange.should_give_sticker(context, unit_data.unit_id):
+                exchange_point_id = await unit.get_exchange_point_id_by_unit_id(context, unit_data.unit_id)
+                if exchange_point_id > 0:
+                    exchange_point_totals[exchange_point_id] = exchange_point_totals.get(exchange_point_id, 0) + 1
+            await unit.remove_unit(context, current_user, unit_data)
+
+        for supp_unit in request.unit_support_list:
+            if supp_unit.amount <= 0:
+                continue
+            unit_info = await unit.get_unit_info(context, supp_unit.unit_id)
+            if unit_info is None:
+                raise idol.error.by_code(idol.error.ERROR_CODE_UNIT_NOT_EXIST)
+            if not await unit.sub_supporter_unit(context, current_user, supp_unit.unit_id, supp_unit.amount):
+                raise idol.error.by_code(idol.error.ERROR_CODE_UNIT_NOT_EXIST)
+            levelup_pattern = await unit.get_unit_level_up_pattern(context, unit_info.unit_level_up_pattern_id)
+            stats = unit.calculate_unit_stats(unit_info, levelup_pattern, 0)
+            price = stats.sale_price * supp_unit.amount
+            detail.append(
+                RewardSellUnitDetail(
+                    unit_owning_user_id=0,
+                    unit_id=supp_unit.unit_id,
+                    is_signed=False,
+                    amount=supp_unit.amount,
+                    price=price,
+                )
+            )
+            total += price
+    else:
+        raise idol.error.by_code(idol.error.ERROR_CODE_NO_UNIT_IS_SELLABLE)
+
+    if not detail:
+        raise idol.error.by_code(idol.error.ERROR_CODE_NO_UNIT_IS_SELLABLE)
+
+    get_exchange_point_list: list[exchange.ExchangePointInfo] = []
+    for exchange_point_id, amount in exchange_point_totals.items():
+        await exchange.add_exchange_point(context, current_user, exchange_point_id, amount)
+        get_exchange_point_list.append(exchange.ExchangePointInfo(rarity=exchange_point_id, exchange_point=amount))
+
+    reward_box_flag = not bool(await advanced.add_item(context, current_user, item.game_coin(total)))
+
+    return RewardSellUnitResponse(
+        before_user_info=before_user,
+        after_user_info=await user.get_user_info(context, current_user),
+        total=total,
+        detail=detail,
+        reward_box_flag=reward_box_flag,
+        get_exchange_point_list=get_exchange_point_list,
+        unit_removable_skill=await unit.get_removable_skill_info_request(context, current_user),
+        present_cnt=await reward.count_presentbox(context, current_user),
     )
 
 

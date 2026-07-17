@@ -77,6 +77,41 @@ class User(common.Base, kw_only=True):
         return result[SALT_SIZE:] == hmac_hash[SALT_SIZE:]
 
 
+class FriendLink(common.Base, kw_only=True):
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, init=False, primary_key=True)
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    friend_user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    # const.FRIEND_STATUS: FRIEND=1, APPROVAL_WAIT=2, PENDING=3.
+    status: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(index=True)
+    is_new: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False, index=True)
+    insert_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, default_factory=util.time, index=True)
+    update_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, onupdate=util.time, index=True
+    )
+
+    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, friend_user_id),)
+
+
+class UserGreet(common.Base, kw_only=True):
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, init=False, primary_key=True)
+    affector_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    receiver_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    message: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column()
+    reply: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False)
+    readed: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False, index=True)
+    deleted_from_affector: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False, index=True)
+    deleted_from_receiver: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False, index=True)
+    insert_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, default_factory=util.time, index=True)
+
+
 class Session(common.Base, kw_only=True):
     id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, init=False, primary_key=True)
     token: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(unique=True)
@@ -181,6 +216,59 @@ class UnitSupporter(common.Base, kw_only=True):
     __table_args__ = (sqlalchemy.UniqueConstraint(user_id, unit_id),)
 
 
+
+
+class UserAccessory(common.Base, kw_only=True):
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, init=False, primary_key=True
+    )
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    accessory_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, index=True)
+    exp: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, default=0)
+    rank_up_count: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, default=0)
+    favorite_flag: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False, index=True)
+    insert_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, default_factory=util.time, index=True)
+    update_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, onupdate=util.time, index=True
+    )
+
+
+class UserAccessoryWear(common.Base, kw_only=True):
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, init=False, primary_key=True
+    )
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    unit_owning_user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(Unit.id), index=True
+    )
+    accessory_owning_user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(UserAccessory.id), index=True
+    )
+    insert_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, default_factory=util.time, index=True)
+
+    __table_args__ = (
+        sqlalchemy.UniqueConstraint(user_id, unit_owning_user_id),
+        sqlalchemy.UniqueConstraint(user_id, accessory_owning_user_id),
+    )
+
+
+class UserAccessoryMaterial(common.Base, kw_only=True):
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, init=False, primary_key=True
+    )
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    accessory_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, index=True)
+    amount: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, default=0)
+
+    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, accessory_id),)
+
+
 class Album(common.Base, kw_only=True):
     id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, init=False, primary_key=True)
     user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
@@ -258,8 +346,11 @@ class Incentive(common.Base, kw_only=True):
     def get_message(self, language: idoltype.Language = idoltype.Language.en):
         if language == idoltype.Language.jp:
             return self.message_jp
-        else:
-            return self.message_en or self.message_jp
+        # No separate present-box CN column yet.  CN should prefer the JP/default
+        # string when an English fallback is the only alternate localization.
+        if language in (idoltype.Language.zh_cn, idoltype.Language.zh_tw):
+            return self.message_jp or self.message_en
+        return self.message_en or self.message_jp
 
 
 class Scenario(common.Base, kw_only=True):
@@ -484,3 +575,61 @@ sessionmaker = sqlalchemy.ext.asyncio.async_sessionmaker(engine)
 def get_sessionmaker():
     global sessionmaker
     return sessionmaker
+
+
+class EventScenarioUnlock(common.Base, kw_only=True):
+    """Per-user post-service event-story state.
+
+    Event story master rows live in the CN combined master database.  This table
+    stores actual user progression instead of returning honoka-style hard-coded
+    status=2 for every chapter.
+    """
+
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, init=False, primary_key=True)
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    event_scenario_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, index=True)
+    completed: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False, index=True)
+    is_new: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=True, index=True)
+    insert_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, index=True
+    )
+
+    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, event_scenario_id),)
+
+
+class MultiUnitScenarioUnlock(common.Base, kw_only=True):
+    """Per-user multi-unit story state."""
+
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, init=False, primary_key=True)
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    multi_unit_scenario_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, index=True)
+    completed: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False, index=True)
+    is_new: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=True, index=True)
+    insert_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, index=True
+    )
+
+    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, multi_unit_scenario_id),)
+
+
+class ContentAccessGrant(common.Base, kw_only=True):
+    """Versioned, idempotent account migration for post-service content access."""
+
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, init=False, primary_key=True)
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    grant_key: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(index=True)
+    grant_version: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(default=0)
+    insert_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, index=True
+    )
+    update_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, onupdate=util.time, index=True
+    )
+
+    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, grant_key),)

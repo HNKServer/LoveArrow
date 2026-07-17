@@ -1,0 +1,151 @@
+NPPS4 v4.46 validation
+======================
+
+Build identity
+--------------
+versionCode: 428
+versionName: 0.4.28
+BUILD_ID: v4.46-cn-gl-accessory-full-cycle
+
+1. Python compilation
+---------------------
+Android app/src/main/python: PASS (compileall, zero diagnostics)
+PC app/src/main/python: PASS (compileall, zero diagnostics)
+
+2. CN regression guard
+----------------------
+Android: CN contract guard OK
+PC: CN contract guard OK
+
+The guard was updated for generator v6 and additionally verifies:
+- all eight accessory endpoints are registered;
+- exact accessory master tables remain bundled;
+- full lifecycle logic references lottery, level, remake, and special-create tables;
+- persistent rank_up_count exists;
+- honoka-style hardcoded level/max/rank/favorite output is absent.
+
+3. Exact CN split-master generation
+-----------------------------------
+Generator: cn_honoka_master:v6_accessory_full_cycle
+
+Generated unit.db_ counts:
+- accessory_base_setting_m: 1
+- accessory_m: 336
+- accessory_level_m: 4895
+- accessory_level_limit_over_m: 12
+- accessory_lottery_cost_m: 21
+- accessory_lottery_group_m: 9
+- accessory_lottery_list_m: 288
+- accessory_special_m: 258
+- material rows: 10
+- NULLs remaining in required smile/pure/cool target columns: 0
+
+Manifest confirms exact CN-client source for accessory_m, accessory_level_m, and accessory_special_m.
+
+4. CN/GL schema compatibility
+-----------------------------
+The following exact CN and GL table schemas compare equal:
+- accessory_base_setting_m
+- accessory_m
+- accessory_level_m
+- accessory_level_limit_over_m
+- accessory_lottery_cost_m
+- accessory_lottery_group_m
+- accessory_lottery_list_m
+- accessory_special_m
+
+Content counts:
+CN accessory_m=336, accessory_level_m=4895, accessory_special_m=258
+GL accessory_m=562, accessory_level_m=8511, accessory_special_m=484
+
+5. CN runtime integration
+-------------------------
+PASS using the exact CN unit master.
+
+Observed result:
+{
+  "profile_master_accessories": 336,
+  "special_accessory_id": 1,
+  "lottery_accessory_id": 28,
+  "enhanced_level": 3,
+  "capped_rest_exp": 600,
+  "rank_up_count": 3,
+  "regular_sale_total": 36000,
+  "material_sale_total": 2880000,
+  "remaining_accessories": 1,
+  "remaining_material_rows": 0
+}
+
+6. GL runtime integration
+-------------------------
+PASS using the exact GL unit master with the same service implementation.
+
+Observed result:
+{
+  "profile_master_accessories": 562,
+  "special_accessory_id": 1,
+  "lottery_accessory_id": 20,
+  "enhanced_level": 3,
+  "capped_rest_exp": 600,
+  "rank_up_count": 3,
+  "regular_sale_total": 144000,
+  "material_sale_total": 2880000,
+  "remaining_accessories": 1,
+  "remaining_material_rows": 0
+}
+
+Both integration runs exercised:
+- single-card special creation;
+- multi-card ordinary lottery creation;
+- card and coin consumption;
+- persistent equip/remove;
+- Glass Part enhancement;
+- ordinary-accessory enhancement fodder;
+- capped EXP preservation;
+- same-ID remake;
+- two-remake Jewel Part batch;
+- favorite persistence and sale protection;
+- ordinary sale;
+- material-stack sale.
+
+7. Endpoint contract registration
+---------------------------------
+Registered unit accessory actions:
+[
+  "accessoryAll",
+  "accessoryMaterialAll",
+  "accessoryTab",
+  "wearAccessory",
+  "favoriteAccessory",
+  "createAccessory",
+  "mergeAccessory",
+  "saleAccessory"
+]
+
+8. Database migration
+---------------------
+Clean database upgrade: PASS
+- Alembic head: accessory_full_cycle
+- user_accessory.rank_up_count present
+
+v4.45-to-v4.46 upgrade: PASS
+- starting revision: cn_post_service_content
+- rank_up_count before upgrade: absent
+- ending revision: accessory_full_cycle
+- rank_up_count after upgrade: present
+
+9. Android/PC parity
+--------------------
+Critical service, database, migration, master-data, build-info, guard, notes, and audit files are byte-identical between Android and PC source trees.
+
+10. Packaging hygiene
+---------------------
+- __pycache__: removed
+- .pyc/.pyo: removed
+- ZIP integrity: checked after packaging
+- SHA-256 manifest: generated after packaging
+
+11. Test boundary
+-----------------
+Static/source/master-data validation and async database integration passed.
+No claim is made that the three newly completed actions have already passed real CN or GL client-device testing. Device testing should cover create, enhance, remake, sale, favorite, and wear UI flows.

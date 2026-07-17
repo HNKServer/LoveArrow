@@ -6,6 +6,7 @@ from .. import strings
 from ..system import achievement
 from ..system import ad_model
 from ..system import advanced
+from ..system import archive_access
 from ..system import class_system as class_system_module
 from ..system import common
 from ..system import effort
@@ -13,6 +14,7 @@ from ..system import item
 from ..system import item_model
 from ..system import lbonus
 from ..system import museum
+from ..system import post_service_content
 from ..system import reward
 from ..system import user
 
@@ -68,19 +70,24 @@ async def lbonus_execute(context: idol.SchoolIdolUserParams) -> LoginBonusRespon
     next_month = await lbonus.get_calendar(context, next_year, next_month_num)
     login_count = await lbonus.get_login_count(context, current_user)
     lbonuses_day = await lbonus.days_login_bonus(context, current_user, current_datetime.year, current_datetime.month)
-    present_count = await reward.count_presentbox(context, current_user)
-
     has_lbonus = current_datetime.day in lbonuses_day
+    effective_login_count = login_count if has_lbonus else login_count + 1
     get_item = None
     add_effort_amount = 0
     achievement_list = achievement.AchievementContext()
-    accomplished_rewards = []
-    unaccomplished_rewards = []
+
+    # Existing accounts created by v4.33-v4.40 were initialized from an
+    # incomplete six-column achievement master.  Synchronize the exact CN
+    # release achievements once, then run NPPS4's ordinary login checker so
+    # song/story unlocks and their UI notifications are genuine achievements.
+    post_service_sync = await post_service_content.sync_once(
+        context, current_user, login_days=effective_login_count
+    )
+
     if not has_lbonus:
         reward_item = current_month[current_datetime.day - 1].item
         add_effort_amount = 100000
         login_count = login_count + 1
-        present_count = present_count + 1
         reward_message = strings.format_simple(strings.get("lbonus", 12), current_datetime.month, current_datetime.day)
         # TODO: Add unit support
         await reward.add_item(context, current_user, reward_item, *reward_message)
@@ -92,23 +99,37 @@ async def lbonus_execute(context: idol.SchoolIdolUserParams) -> LoginBonusRespon
         )
         await item.update_item_category_id(context, get_item)
         lbonuses_day.add(current_datetime.day)
-        # Do achievement check
+
+    # Run the login trigger exactly once.  A same-day account may already have
+    # received its calendar item, but still needs one trigger after the v4.41
+    # master-data migration so type-29 release achievements become real unlocks.
+    if not has_lbonus or post_service_sync.applied:
         achievement_list.extend(
             await achievement.check(
-                context, current_user, achievement.AchievementUpdateLoginBonus(login_days=login_count)
+                context, current_user, achievement.AchievementUpdateLoginBonus(login_days=effective_login_count)
             )
         )
-        accomplished_rewards.extend(
-            [await achievement.get_achievement_rewards(context, ach) for ach in achievement_list.accomplished]
-        )
-        unaccomplished_rewards.extend(
-            [await achievement.get_achievement_rewards(context, ach) for ach in achievement_list.new]
-        )
-        accomplished_rewards = await advanced.fixup_achievement_reward(context, current_user, accomplished_rewards)
-        unaccomplished_rewards = await advanced.fixup_achievement_reward(context, current_user, unaccomplished_rewards)
-        await achievement.process_achievement_reward(
-            context, current_user, achievement_list.accomplished, accomplished_rewards
-        )
+
+    # Build and process the combined daily-login + post-service achievement
+    # result once.  This preserves upstream reward replacement and auto-reward
+    # behavior instead of directly editing live/scenario unlock tables.
+    achievement_list.fix()
+    accomplished_rewards = [
+        await achievement.get_achievement_rewards(context, ach) for ach in achievement_list.accomplished
+    ]
+    unaccomplished_rewards = [
+        await achievement.get_achievement_rewards(context, ach) for ach in achievement_list.new
+    ]
+    accomplished_rewards = await advanced.fixup_achievement_reward(context, current_user, accomplished_rewards)
+    unaccomplished_rewards = await advanced.fixup_achievement_reward(context, current_user, unaccomplished_rewards)
+    await achievement.process_achievement_reward(
+        context, current_user, achievement_list.accomplished, accomplished_rewards
+    )
+
+    # Optional archive/catalog access is separate from rewards and completion:
+    # stories remain unread, Live uses real unlock rows, and card policies only
+    # affect Album catalog state rather than granting physical inventory.
+    await archive_access.sync_once(context, current_user)
 
     # Modify current_month
     for day in lbonuses_day:
@@ -124,6 +145,7 @@ async def lbonus_execute(context: idol.SchoolIdolUserParams) -> LoginBonusRespon
                 r.reward_box_flag = True
 
     current_date = f"{current_datetime.year}-{current_datetime.month}-{current_datetime.day}"
+    present_count = await reward.count_presentbox(context, current_user)
 
     return LoginBonusResponse(
         calendar_info=LoginBonusCalendarInfo(

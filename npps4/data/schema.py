@@ -227,12 +227,20 @@ class SerializedServerData(pydantic.BaseModel):
     json_schema_link: pydantic.json_schema.SkipJsonSchema[str | None] = pydantic.Field(
         default=None, validation_alias="$schema", serialization_alias="$schema"
     )
-    badwords: list[pydantic.Base64UrlStr]
-    achievement_reward: list[AchievementReward]
-    live_unit_drop_chance: LiveUnitDropChance
-    common_live_unit_drops: list[LiveUnitDrop]
-    live_specific_live_unit_drops: list[LiveSpecificLiveUnitDrop]
-    live_effort_drops: list[LiveEffortRewardDrops]
-    secretbox_data: list[SecretboxData]
-    serial_codes: list[SerialCode]
-    sticker_shop: list[StickerShop]
+    # Android wrapper workspaces created by older v4.2x builds could end up with
+    # an empty or partially-copied server_data.json.  The original NPPS4 schema
+    # treated these fields as mandatory, so even a harmless username check could
+    # explode with a Pydantic ValidationError before the game reached the CN
+    # download flow.  Keep full validation for provided items, but make omitted
+    # optional data sections default to safe empty values.
+    badwords: list[pydantic.Base64UrlStr] = pydantic.Field(default_factory=list)
+    achievement_reward: list[AchievementReward] = pydantic.Field(default_factory=list)
+    live_unit_drop_chance: LiveUnitDropChance = pydantic.Field(
+        default_factory=lambda: LiveUnitDropChance(common=0, live_specific=0)
+    )
+    common_live_unit_drops: list[LiveUnitDrop] = pydantic.Field(default_factory=list)
+    live_specific_live_unit_drops: list[LiveSpecificLiveUnitDrop] = pydantic.Field(default_factory=list)
+    live_effort_drops: list[LiveEffortRewardDrops] = pydantic.Field(default_factory=list)
+    secretbox_data: list[SecretboxData] = pydantic.Field(default_factory=list)
+    serial_codes: list[SerialCode] = pydantic.Field(default_factory=list)
+    sticker_shop: list[StickerShop] = pydantic.Field(default_factory=list)

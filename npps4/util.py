@@ -29,25 +29,51 @@ def randbytes(n: int):
 
 
 def parse_sif_version(version: str):
-    v = version.split(".", 1)
-    return int(v[0]), int(v[1])
+    """Parse SIF client/server versions into the two-part tuple NPPS4 uses.
+
+    The original server only accepted strings like ``97.4`` or ``9.7``.
+    CN/GL Android clients can report the Android package version as a semantic
+    three-part value such as ``9.7.1`` in the ``Client-Version`` header.  Treat
+    that as ``(9, 7)`` instead of rejecting the request with HTTP 422.
+    """
+    parts = str(version).strip().split(".")
+    if len(parts) < 2:
+        raise ValueError('"client_version" must contain at least major.minor.')
+    return int(parts[0]), int(parts[1])
 
 
 def sif_version_string(version: tuple[int, int]):
     return "%d.%d" % version
 
 
-def sign_message(content: bytes, request_xmc_hex: str | None):
+def sign_message(content: bytes, request_xmc_hex: str | None, rsa_key=None):
     sha1 = Cryptodome.Hash.SHA1.new(content)
     if request_xmc_hex is not None:
         sha1.update(request_xmc_hex.encode("UTF-8"))
-    sign = Cryptodome.Signature.pkcs1_15.new(config.get_server_rsa())
+    sign = Cryptodome.Signature.pkcs1_15.new(rsa_key or config.get_server_rsa())
     return str(base64.b64encode(sign.sign(sha1)), "UTF-8")
 
 
 def decrypt_rsa(data: bytes):
     pkcs = Cryptodome.Cipher.PKCS1_v1_5.new(config.get_server_rsa())
     return pkcs.decrypt(data, None)
+
+
+def decrypt_rsa_any(data: bytes):
+    """Try all configured server RSA keys and return (plaintext, key_label)."""
+    last_error: Exception | None = None
+    for label, rsa_key in config.get_server_rsa_candidates():
+        try:
+            pkcs = Cryptodome.Cipher.PKCS1_v1_5.new(rsa_key)
+            plaintext = pkcs.decrypt(data, None)
+        except Exception as e:
+            last_error = e
+            continue
+        if plaintext:
+            return plaintext, label
+    if last_error is not None:
+        raise last_error
+    return b"", None
 
 
 def decrypt_aes(key: bytes, data: bytes):

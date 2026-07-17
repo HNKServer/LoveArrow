@@ -403,15 +403,102 @@ async def get_live_track_info(context: idol.BasicSchoolIdolContext, live_track_i
     return live_track
 
 
+def _special_live_rotation_timezone():
+    """Timezone for date-bound live rotations.
+
+    This intentionally performs a timezone conversion rather than adding a fixed
+    number of hours to the current local clock.  With the default CN setting it
+    asks: "what date is it right now in Asia/Shanghai?".  It will not double
+    add eight hours when the host OS is already set to China/Hong Kong time.
+    "system"/"local" is allowed for deployments that intentionally want the
+    host timezone to define the game day.
+    """
+
+    import datetime as _datetime
+
+    name = config.get_daily_rotation_timezone_name()
+    if name == "local":
+        return _datetime.datetime.now().astimezone().tzinfo or _datetime.timezone.utc
+
+    try:
+        import zoneinfo
+
+        return zoneinfo.ZoneInfo(name)
+    except Exception:
+        # Keep the server usable on minimal Python builds without tzdata.  The
+        # configured defaults do not use DST, so fixed offsets are safe here.
+        if name in {"Asia/Shanghai", "Asia/Hong_Kong", "Asia/Singapore", "Etc/GMT-8"}:
+            return _datetime.timezone(_datetime.timedelta(hours=8), name)
+        if name in {"Asia/Tokyo", "Etc/GMT-9"}:
+            return _datetime.timezone(_datetime.timedelta(hours=9), name)
+        raise
+
+
+def _special_live_rotation_local_datetime(ts: int | None = None):
+    import datetime as _datetime
+
+    tz = _special_live_rotation_timezone()
+    if ts is None:
+        ts = util.time()
+    return _datetime.datetime.fromtimestamp(ts, _datetime.timezone.utc).astimezone(tz)
+
+
+def _special_live_rotation_day(ts: int | None = None) -> int:
+    import datetime as _datetime
+
+    local_date = _special_live_rotation_local_datetime(ts).date()
+    return (local_date - _datetime.date(1970, 1, 1)).days
+
+
+def _special_live_rotation_day_start_timestamp(day: int) -> int:
+    import datetime as _datetime
+
+    tz = _special_live_rotation_timezone()
+    local_date = _datetime.date(1970, 1, 1) + _datetime.timedelta(days=day)
+    local_midnight = _datetime.datetime.combine(local_date, _datetime.time.min, tzinfo=tz)
+    return int(local_midnight.timestamp())
+
+
+def get_special_live_rotation_sunday_based_weekday(ts: int | None = None) -> int:
+    """Return Sunday=0..Saturday=6 in the configured rotation timezone."""
+
+    now = _special_live_rotation_local_datetime(ts)
+    return (now.weekday() + 1) % 7
+
+
+def format_special_live_rotation_timestamp(ts: int) -> str:
+    return _special_live_rotation_local_datetime(ts).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _parse_rotation_base_timestamp(value: str) -> int:
+    # master data in the wild may use either '-' or '/' separators.  Interpret
+    # the naive master-data timestamp in the configured game rotation timezone.
+    import datetime as _datetime
+
+    value = value.strip()
+    tz = _special_live_rotation_timezone()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S", "%Y/%m/%d %H:%M"):
+        try:
+            dt = _datetime.datetime.strptime(value, fmt)
+            return int(dt.replace(tzinfo=tz).timestamp())
+        except ValueError:
+            continue
+    # Fall back to the original helper for any unexpected legacy format; it is
+    # JST-biased but better than crashing during startup.
+    return util.datetime_to_timestamp(value)
+
+
 async def get_special_live_rotation_time_modulo(context: idol.BasicSchoolIdolContext, /):
-    q = sqlalchemy.select(live.SpecialLiveRotation)
+    q = sqlalchemy.select(live.SpecialLiveRotation).order_by(
+        live.SpecialLiveRotation.rotation_group_id, live.SpecialLiveRotation.base_date
+    )
     result = await context.db.live.execute(q)
     rotation_group_time: dict[int, list[tuple[int, int]]] = {}
 
     for row in result.scalars():
         group = rotation_group_time.setdefault(row.rotation_group_id, [])
-        unix_timestamp = util.datetime_to_timestamp(row.base_date)
-        group.append((row.live_difficulty_id, unix_timestamp // 86400))
+        unix_timestamp = _parse_rotation_base_timestamp(row.base_date)
+        group.append((row.live_difficulty_id, _special_live_rotation_day(unix_timestamp)))
 
     return rotation_group_time
 
@@ -419,9 +506,11 @@ async def get_special_live_rotation_time_modulo(context: idol.BasicSchoolIdolCon
 async def get_special_live_rotation_difficulty_id(context: idol.BasicSchoolIdolContext, /):
     rotation_group_time = await get_special_live_rotation_time_modulo(context)
     result: dict[int, int] = {}
-    current_day = util.get_days_since_unix()
+    current_day = _special_live_rotation_day()
 
     for group_id, live_list in rotation_group_time.items():
+        if not live_list:
+            continue
         current_day_modulo = current_day % len(live_list)
 
         for live_difficulty_id, day_time in live_list:
@@ -432,11 +521,83 @@ async def get_special_live_rotation_difficulty_id(context: idol.BasicSchoolIdolC
     return result
 
 
+async def get_current_and_next_special_live_rotation_schedules(context: idol.BasicSchoolIdolContext, /):
+    """Return the active and next rotation window for each special-live group.
+
+    honoka-chan uses the same master table but exposes both the current and next
+    song in live/schedule.  This is not a honoka-only shortcut: it is a faithful
+    interpretation of special_live_rotation_m, so it is safe to keep as a real
+    NPPS4 wrapper over existing master data.
+    """
+
+    q = sqlalchemy.select(live.SpecialLiveRotation).order_by(
+        live.SpecialLiveRotation.rotation_group_id, live.SpecialLiveRotation.base_date
+    )
+    result = await context.db.live.execute(q)
+
+    grouped: dict[int, list[tuple[int, int]]] = {}
+    for row in result.scalars():
+        base_ts = _parse_rotation_base_timestamp(row.base_date)
+        grouped.setdefault(row.rotation_group_id, []).append(
+            (row.live_difficulty_id, _special_live_rotation_day(base_ts))
+        )
+
+    current_day = _special_live_rotation_day()
+    schedules: list[tuple[int, int, int]] = []
+    for group_id in sorted(grouped):
+        live_list = grouped[group_id]
+        if not live_list:
+            continue
+
+        current_index = -1
+        current_day_modulo = current_day % len(live_list)
+        for index, (_, base_day) in enumerate(live_list):
+            if base_day % len(live_list) == current_day_modulo:
+                current_index = index
+                break
+        if current_index < 0:
+            continue
+
+        # Daily rotations have period_days=1.  Some data sets encode longer
+        # periods; preserve that instead of hardcoding a one-day span.
+        period_days = 1
+        if len(live_list) >= 2:
+            diff = live_list[1][1] - live_list[0][1]
+            if diff > 0:
+                period_days = diff
+
+        current_live_id, current_base_day = live_list[current_index]
+        offset_days = (current_day - current_base_day) % period_days
+        current_start_day = current_day - offset_days
+        current_start_ts = _special_live_rotation_day_start_timestamp(current_start_day)
+        current_end_ts = _special_live_rotation_day_start_timestamp(current_start_day + period_days) - 1
+        schedules.append((current_live_id, current_start_ts, current_end_ts))
+
+        if len(live_list) > 1:
+            next_live_id, _ = live_list[(current_index + 1) % len(live_list)]
+            next_start_day = current_start_day + period_days
+            next_start_ts = _special_live_rotation_day_start_timestamp(next_start_day)
+            next_end_ts = _special_live_rotation_day_start_timestamp(next_start_day + period_days) - 1
+            schedules.append((next_live_id, next_start_ts, next_end_ts))
+
+    return schedules
+
+
 async def get_special_live_status(context: idol.BasicSchoolIdolContext, /, user: main.User):
     result: list[live_model.LiveStatus] = []
-    today_b_side_rotation = await get_special_live_rotation_difficulty_id(context)
 
-    for live_difficulty_id in today_b_side_rotation.values():
+    if config.is_cn_compat():
+        # CN/honoka behavior exposes both current and next daily-rotation songs
+        # in status.  Do this only under CN profile so the normal NPPS4 schedule
+        # remains unchanged for JP/Global clients.
+        live_difficulty_ids = [
+            live_difficulty_id
+            for live_difficulty_id, _, _ in await get_current_and_next_special_live_rotation_schedules(context)
+        ]
+    else:
+        live_difficulty_ids = list((await get_special_live_rotation_difficulty_id(context)).values())
+
+    for live_difficulty_id in live_difficulty_ids:
         live_clear = await get_live_clear_data(context, user, live_difficulty_id)
         result.append(await live_status_from_live_clear(context, live_difficulty_id, live_clear))
 

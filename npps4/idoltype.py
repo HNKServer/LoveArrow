@@ -6,6 +6,32 @@ import pydantic
 class Language(str, enum.Enum):
     en = "en"
     jp = "jp"
+    zh_cn = "zh_cn"
+    zh_tw = "zh_tw"
+
+
+def normalize_language(value: str | Language | None) -> Language:
+    """Normalize client LANG header values across Global/JP/CN clients.
+
+    Older SIF clients and regional builds are not perfectly consistent about
+    casing and separators.  Keep FastAPI from rejecting the request before the
+    compatibility layer can decide how to handle it.
+    """
+    if isinstance(value, Language):
+        return value
+    if value is None:
+        return Language.en
+
+    v = str(value).strip().replace("-", "_").lower()
+    match v:
+        case "jp" | "ja" | "ja_jp" | "japanese":
+            return Language.jp
+        case "cn" | "zh" | "zh_cn" | "zh_hans" | "zh_sg" | "sc" | "chs":
+            return Language.zh_cn
+        case "zh_tw" | "zh_hk" | "zh_hant" | "tc" | "cht":
+            return Language.zh_tw
+        case _:
+            return Language.en
 
 
 class PlatformType(enum.IntEnum):

@@ -132,6 +132,16 @@ class LivePlayResponse(common.TimestampMixin):
     auto_play: bool = False
 
 
+class LiveContinueRequest(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(extra="allow")
+
+
+class LiveContinueResponse(pydantic.BaseModel):
+    before_sns_coin: int
+    after_sns_coin: int
+    server_timestamp: int
+
+
 class LiveRewardPreciseList(pydantic.BaseModel):
     effect: int
     count: int
@@ -330,12 +340,25 @@ async def live_livestatus(context: idol.SchoolIdolUserParams) -> LiveStatusRespo
 
 @idol.register("live", "schedule")
 async def live_schedule(context: idol.SchoolIdolUserParams) -> LiveScheduleResponse:
-    ts = util.time()
-    special_live_rotation = await live.get_special_live_rotation_difficulty_id(context)
-
-    return LiveScheduleResponse(
-        event_list=[],
-        live_list=[
+    if config.is_cn_compat():
+        # CN data uses special_live_rotation_m for daily/periodic special-song
+        # rotation.  Expose the current and next window, matching honoka-chan's
+        # observed behavior while still using NPPS4's master DB and live system.
+        live_entries = [
+            LimitedLive(
+                live_difficulty_id=live_difficulty_id,
+                start_date=live.format_special_live_rotation_timestamp(start_ts),
+                end_date=live.format_special_live_rotation_timestamp(end_ts),
+                is_random=False,
+            )
+            for live_difficulty_id, start_ts, end_ts in await live.get_current_and_next_special_live_rotation_schedules(
+                context
+            )
+        ]
+    else:
+        ts = util.time()
+        special_live_rotation = await live.get_special_live_rotation_difficulty_id(context)
+        live_entries = [
             LimitedLive(
                 live_difficulty_id=live_difficulty_id,
                 start_date=util.timestamp_to_datetime(util.get_next_day_timestamp(ts, ndays=0)),
@@ -343,7 +366,11 @@ async def live_schedule(context: idol.SchoolIdolUserParams) -> LiveScheduleRespo
                 is_random=False,  # TODO
             )
             for live_difficulty_id in special_live_rotation.values()
-        ],
+        ]
+
+    return LiveScheduleResponse(
+        event_list=[],
+        live_list=live_entries,
         limited_bonus_list=[],
         limited_bonus_common_list=[],
         random_live_list=[
@@ -556,6 +583,27 @@ async def live_play(context: idol.SchoolIdolUserParams, request: LivePlayRequest
         over_max_energy=current_user.over_max_energy,
         # TODO: Medley Festival
         live_list=[LivePlayList(live_info=beatmap_data, deck_info=stats)],
+    )
+
+
+@idol.register("live", "continue", batchable=False)
+async def live_continue(context: idol.SchoolIdolUserParams, request: LiveContinueRequest) -> LiveContinueResponse:
+    current_user = await user.get_current(context)
+    live_in_progress = await live.get_live_in_progress(context, current_user)
+    if live_in_progress is None:
+        raise idol.error.IdolError(detail="attempt to continue live show without playing", http_code=403)
+
+    before_sns_coin = user.get_loveca(current_user)
+    continue_cost = config.get_live_continue_loveca_cost()
+    if continue_cost > 0:
+        if not user.sub_loveca(current_user, continue_cost):
+            raise idol.error.by_code(idol.error.ERROR_CODE_NOT_ENOUGH_LOVECA)
+        await context.db.main.flush()
+
+    return LiveContinueResponse(
+        before_sns_coin=before_sns_coin,
+        after_sns_coin=user.get_loveca(current_user),
+        server_timestamp=util.time(),
     )
 
 

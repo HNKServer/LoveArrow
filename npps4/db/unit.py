@@ -709,3 +709,189 @@ sessionmaker = sqlalchemy.ext.asyncio.async_sessionmaker(engine)
 def get_sessionmaker():
     global sessionmaker
     return sessionmaker
+
+
+class AccessoryBaseSetting(common.GameDBBase):
+    """```sql
+    CREATE TABLE `accessory_base_setting_m` (
+        `accessory_base_setting_id` INTEGER NOT NULL,
+        `owning_capacity` INTEGER NOT NULL,
+        `owning_material_capacity` INTEGER NOT NULL,
+        PRIMARY KEY (`accessory_base_setting_id`)
+    )
+    ```"""
+
+    __tablename__ = "accessory_base_setting_m"
+    accessory_base_setting_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)
+    owning_capacity: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    owning_material_capacity: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+
+
+class Accessory(common.GameDBBase):
+    """```sql
+    CREATE TABLE `accessory_m` (
+        `accessory_id` INTEGER NOT NULL,
+        `name` TEXT NOT NULL,
+        `name_en` TEXT,
+        `rarity` INTEGER NOT NULL,
+        `smile_max` INTEGER NOT NULL,
+        `pure_max` INTEGER NOT NULL,
+        `cool_max` INTEGER NOT NULL,
+        `is_material` INTEGER NOT NULL,
+        `effect_type` INTEGER,
+        `default_max_level` INTEGER NOT NULL,
+        `max_level` INTEGER NOT NULL,
+        `accessory_asset_id` INTEGER NOT NULL,
+        `trigger_type` INTEGER,
+        `trigger_effect_type` INTEGER,
+        `open_date` TEXT,
+        PRIMARY KEY (`accessory_id`)
+    )
+    ```"""
+
+    __tablename__ = "accessory_m"
+    accessory_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)
+    name: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column()
+    name_en: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column()
+    rarity: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    smile_max: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    pure_max: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    cool_max: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    is_material: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    effect_type: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column()
+    default_max_level: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    max_level: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    accessory_asset_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    trigger_type: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column()
+    trigger_effect_type: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column()
+    open_date: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column()
+
+
+class AccessoryLevel(common.GameDBBase):
+    """```sql
+    CREATE TABLE `accessory_level_m` (
+        `accessory_id` INTEGER NOT NULL,
+        `level` INTEGER NOT NULL,
+        `next_exp` INTEGER NOT NULL,
+        `effect_range` INTEGER,
+        `effect_value` REAL,
+        `discharge_time` REAL,
+        `trigger_value` INTEGER,
+        `activation_rate` INTEGER,
+        `unit_skill_combo_pattern_id` INTEGER,
+        `spark_count_limit` INTEGER,
+        `smile_diff` INTEGER NOT NULL,
+        `pure_diff` INTEGER NOT NULL,
+        `cool_diff` INTEGER NOT NULL,
+        `grant_exp` INTEGER NOT NULL,
+        `merge_cost` INTEGER NOT NULL,
+        `sale_price` INTEGER NOT NULL,
+        PRIMARY KEY (`accessory_id`,`level`)
+    )
+    ```"""
+
+    __tablename__ = "accessory_level_m"
+    accessory_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)
+    level: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)
+    next_exp: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    effect_range: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column()
+    effect_value: sqlalchemy.orm.Mapped[float | None] = sqlalchemy.orm.mapped_column()
+    discharge_time: sqlalchemy.orm.Mapped[float | None] = sqlalchemy.orm.mapped_column()
+    trigger_value: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column()
+    activation_rate: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column()
+    unit_skill_combo_pattern_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column()
+    spark_count_limit: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column()
+    smile_diff: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    pure_diff: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    cool_diff: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    grant_exp: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    merge_cost: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    sale_price: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+
+
+class AccessoryLevelLimitOver(common.GameDBBase):
+    """```sql
+    CREATE TABLE `accessory_level_limit_over_m` (
+        `base_rarity` INTEGER NOT NULL,
+        `material_rarity` INTEGER NOT NULL,
+        `amount` INTEGER NOT NULL,
+        PRIMARY KEY (`base_rarity`,`material_rarity`)
+    )
+    ```"""
+
+    __tablename__ = "accessory_level_limit_over_m"
+    base_rarity: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)
+    material_rarity: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)
+    amount: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+
+
+class AccessoryLotteryCost(common.GameDBBase):
+    """```sql
+    CREATE TABLE `accessory_lottery_cost_m` (
+        `accessory_lottery_cost_id` INTEGER NOT NULL,
+        `status_type` INTEGER NOT NULL,
+        `from_value` INTEGER NOT NULL,
+        `to_value` INTEGER NOT NULL,
+        `cost_value` INTEGER NOT NULL,
+        PRIMARY KEY (`accessory_lottery_cost_id`)
+    )
+    ```"""
+
+    __tablename__ = "accessory_lottery_cost_m"
+    accessory_lottery_cost_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)
+    status_type: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    from_value: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    to_value: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    cost_value: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+
+
+class AccessoryLotteryGroup(common.GameDBBase):
+    """```sql
+    CREATE TABLE `accessory_lottery_group_m` (
+        `accessory_lottery_group_id` INTEGER NOT NULL,
+        `from_cost` INTEGER NOT NULL,
+        `to_cost` INTEGER NOT NULL,
+        PRIMARY KEY (`accessory_lottery_group_id`)
+    )
+    ```"""
+
+    __tablename__ = "accessory_lottery_group_m"
+    accessory_lottery_group_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)
+    from_cost: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    to_cost: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+
+
+class AccessoryLotteryList(common.GameDBBase):
+    """```sql
+    CREATE TABLE `accessory_lottery_list_m` (
+        `accessory_lottery_list_id` INTEGER NOT NULL,
+        `accessory_lottery_group_id` INTEGER NOT NULL,
+        `accessory_id` INTEGER NOT NULL,
+        `weight` INTEGER NOT NULL,
+        `start_date` TEXT,
+        `end_date` TEXT,
+        PRIMARY KEY (`accessory_lottery_list_id`)
+    )
+    ```"""
+
+    __tablename__ = "accessory_lottery_list_m"
+    accessory_lottery_list_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)
+    accessory_lottery_group_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    accessory_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    weight: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
+    start_date: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column()
+    end_date: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column()
+
+
+class AccessorySpecial(common.GameDBBase):
+    """```sql
+    CREATE TABLE `accessory_special_m` (
+        `accessory_id` INTEGER NOT NULL,
+        `unit_id` INTEGER NOT NULL,
+        PRIMARY KEY (`accessory_id`,`unit_id`)
+    )
+    ```"""
+
+    __tablename__ = "accessory_special_m"
+    accessory_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)
+    unit_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(primary_key=True)

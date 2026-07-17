@@ -17,6 +17,7 @@ if not config.is_script_mode():
     from . import exchange
     from . import friend
     from . import gdpr
+    from . import greet
     from . import handover
     from . import item
     from . import lbonus
@@ -42,4 +43,14 @@ if not config.is_script_mode():
     from . import tutorial
     from . import unit
     from . import user
+    # CN wrappers are enabled by default because they are not honoka-style stubs:
+    # they only translate CN action names/shapes into NPPS4's own gameplay systems.
+    if config.use_cn_wrappers():
+        from . import cn_wrappers
+
+    # Keep honoka-inspired fallback stubs opt-in. They are useful for locating
+    # CN-only calls, but enabling them by default can mask missing real gameplay
+    # implementations and make compatibility testing look healthier than it is.
+    if config.use_cn_optional_stubs():
+        from . import cn_optional_stubs
     from .. import sif2export  # HACK

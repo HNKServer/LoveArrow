@@ -30,7 +30,7 @@ async def get_backgrounds(context: idol.BasicSchoolIdolContext, user: main.User)
 
 @webui.app.get("/unlock_backgrounds.html")
 async def unlock_backgrounds(
-    request: fastapi.Request, uid: int, bg_id: Annotated[list[int], fastapi.Query(default_factory=list)]
+    request: fastapi.Request, uid: int, bg_id: Annotated[list[int] | None, fastapi.Query()] = None
 ):
     async with idol.BasicSchoolIdolContext(lang=idol.Language.en) as context:
         target_user = await context.db.main.get(main.User, uid)
@@ -38,7 +38,7 @@ async def unlock_backgrounds(
             raise ValueError("invalid user_id")
 
         # Perform unlock first.
-        for background_id in bg_id:
+        for background_id in (bg_id or []):
             await background.unlock_background(context, target_user, background_id)
 
         # Get locked and unlocked backgrounds
