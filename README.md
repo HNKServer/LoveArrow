@@ -32,11 +32,15 @@ For other operations, please refer to the original README: [README_Origin.md](ht
 
 You can download ZH-CN Android data packs and CN Android client from here : [Android-CN](https://mega.nz/folder/X7JB3bwI#L9eLbOQsCLMkSK0TO3_hfw)
 
-This client requires port 8080
+You can also download modified GL Android client from here : [Android-GL](https://mega.nz/file/r7JVACQQ#-UzICDBJnCyA6_6IC7ldxfRGAvpppzLxEH9kK4zcGSw)
+
+Both clients require working at port 8080
 
 你可以从此处下载安卓端中文数据包和安卓端国服客户端：[Android-CN](https://mega.nz/folder/X7JB3bwI#L9eLbOQsCLMkSK0TO3_hfw)
 
-此客户端需要的端口号为 8080
+你也可以从此处下载安卓端国际服客户端：[Android-GL](https://mega.nz/file/r7JVACQQ#-UzICDBJnCyA6_6IC7ldxfRGAvpppzLxEH9kK4zcGSw)
+
+这两个客户端都需要工作在 8080 端口上
 
 ## Credits & Special Thanks
 
