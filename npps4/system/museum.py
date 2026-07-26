@@ -1,7 +1,7 @@
 import pydantic
 import sqlalchemy
 
-from .. import idol
+from .. import client_profile, idol
 from ..config import config
 from ..db import main
 from ..db import museum
@@ -34,7 +34,7 @@ async def _native_rows(context: idol.BasicSchoolIdolContext):
 
 async def _cleanup_legacy_museum_transplant(context: idol.BasicSchoolIdolContext, user: main.User) -> None:
     """Remove obsolete automatic cross-region Museum grants from old databases."""
-    if not config.is_cn_compat():
+    if context.profile is not client_profile.ClientProfile.CN:
         return
     grant_q = sqlalchemy.select(main.ContentAccessGrant).where(
         main.ContentAccessGrant.user_id == user.id,
@@ -48,6 +48,7 @@ async def _cleanup_legacy_museum_transplant(context: idol.BasicSchoolIdolContext
         await context.db.main.execute(
             sqlalchemy.delete(main.MuseumUnlock).where(
                 main.MuseumUnlock.user_id == user.id,
+                main.MuseumUnlock.profile == context.profile.value,
                 main.MuseumUnlock.museum_contents_id.not_in(native_ids),
             )
         )
@@ -65,11 +66,18 @@ async def unlock(context: idol.BasicSchoolIdolContext, user: main.User, museum_c
         raise ValueError("invalid museum contents id")
     q = sqlalchemy.select(main.MuseumUnlock).where(
         main.MuseumUnlock.user_id == user.id,
+        main.MuseumUnlock.profile == context.profile.value,
         main.MuseumUnlock.museum_contents_id == museum_contents_id,
     )
     if (await context.db.main.execute(q)).scalar() is not None:
         return False
-    context.db.main.add(main.MuseumUnlock(user_id=user.id, museum_contents_id=museum_contents_id))
+    context.db.main.add(
+        main.MuseumUnlock(
+            user_id=user.id,
+            profile=context.profile.value,
+            museum_contents_id=museum_contents_id,
+        )
+    )
     await context.db.main.flush()
     return True
 
@@ -77,13 +85,14 @@ async def unlock(context: idol.BasicSchoolIdolContext, user: main.User, museum_c
 async def has(context: idol.BasicSchoolIdolContext, user: main.User, museum_contents_id: int):
     q = sqlalchemy.select(main.MuseumUnlock).where(
         main.MuseumUnlock.user_id == user.id,
+        main.MuseumUnlock.profile == context.profile.value,
         main.MuseumUnlock.museum_contents_id == museum_contents_id,
     )
     return (await context.db.main.execute(q)).scalar() is not None
 
 
-def _native_unlock_policy() -> str:
-    policy = str(config.CONFIG_DATA.download.cn_archive.museum_unlock_policy or "normal").strip().lower()
+def _native_unlock_policy(context: idol.BasicSchoolIdolContext) -> str:
+    policy = str(config.get_profile_download(context.profile).museum_unlock_policy or "normal").strip().lower()
     if policy not in {"normal", "all"}:
         return "normal"
     return policy
@@ -93,19 +102,25 @@ async def get_museum_info_data(context: idol.BasicSchoolIdolContext, user: main.
     await _cleanup_legacy_museum_transplant(context, user)
     rows = await _native_rows(context)
     row_by_id = {int(row[0]): row for row in rows}
-    if config.is_cn_compat() and _native_unlock_policy() == "all":
-        # Deliberately limited to the stock CN master rows.  This restores the
-        # useful all-unlock switch without reviving the abandoned 1360-row GL
-        # catalogue transplant.
+    if _native_unlock_policy(context) == "all":
+        # Only the active profile's native catalogue is exposed. CN and GL use
+        # separate Master DB connections, so this is not a cross-region transplant.
         contents_id_list = sorted(row_by_id)
     else:
-        q = sqlalchemy.select(main.MuseumUnlock.museum_contents_id).where(main.MuseumUnlock.user_id == user.id)
+        q = sqlalchemy.select(main.MuseumUnlock.museum_contents_id).where(
+            main.MuseumUnlock.user_id == user.id,
+            main.MuseumUnlock.profile == context.profile.value,
+        )
         requested = list((await context.db.main.execute(q)).scalars())
         contents_id_list = sorted({int(value) for value in requested if int(value) in row_by_id})
     parameter = MuseumParameterData()
-    for contents_id in contents_id_list:
-        _, smile_buff, pure_buff, cool_buff = row_by_id[contents_id]
-        parameter.smile += int(smile_buff or 0)
-        parameter.pure += int(pure_buff or 0)
-        parameter.cool += int(cool_buff or 0)
+    # Keep the native Museum/Album catalogue and unlock state fully functional.
+    # The client receives the same contents_id_list, so unlocked gallery entries
+    # remain viewable; only the permanent team-stat contribution is suppressed.
+    if config.CONFIG_DATA.gameplay.museum_stat_bonus_enabled:
+        for contents_id in contents_id_list:
+            _, smile_buff, pure_buff, cool_buff = row_by_id[contents_id]
+            parameter.smile += int(smile_buff or 0)
+            parameter.pure += int(pure_buff or 0)
+            parameter.cool += int(cool_buff or 0)
     return MuseumInfoData(parameter=parameter, contents_id_list=contents_id_list)

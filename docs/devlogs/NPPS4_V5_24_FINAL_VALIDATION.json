@@ -1,0 +1,21 @@
+{
+  "build_id": "v5.24-ranking-schema-rollback-museum-visual-only",
+  "package": "PC",
+  "android_version_code": 524,
+  "android_version_name": "0.5.24",
+  "embedded_python_files": 2340,
+  "alembic_head": "costume_full_cycle",
+  "ranking_schema": {
+    "live_clear_profile": false,
+    "live_replay_profile": false,
+    "player_ranking_profile": false,
+    "normalized_hi_score": false,
+    "cn_gl_score_weighting": false
+  },
+  "museum_stat_bonus_enabled_default": false,
+  "bundled_unit_master": {
+    "cn": 3644,
+    "gl": 3998
+  },
+  "new_database_migration": false
+}

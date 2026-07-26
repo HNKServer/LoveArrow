@@ -14,6 +14,7 @@ from ..system import common
 from ..system import exchange
 from ..system import item
 from ..system import museum
+from ..system import profile_projection
 from ..system import reward
 from ..system import unit
 from ..system import unit_model
@@ -53,11 +54,39 @@ class UnitAccessoryMaterialAmount(pydantic.BaseModel):
 
 
 class UnitCreateAccessoryRequest(pydantic.BaseModel):
-    unit_owning_user_ids: list[int]
+    # CN sends a flat list for one creation.  GL's auto-create button sends a
+    # nested list, where every inner list creates one accessory.
+    unit_owning_user_ids: list[int] | list[list[int]]
+
+    @pydantic.field_validator("unit_owning_user_ids", mode="before")
+    @classmethod
+    def _validate_flat_or_grouped_ids(cls, value):
+        if not isinstance(value, list) or not value:
+            raise ValueError("unit_owning_user_ids must be a non-empty list")
+        nested_flags = [isinstance(item, list) for item in value]
+        if any(nested_flags) and not all(nested_flags):
+            raise ValueError("unit_owning_user_ids cannot mix integers and lists")
+        if all(nested_flags) and any(not item for item in value):
+            raise ValueError("unit_owning_user_ids cannot contain an empty group")
+        return value
+
+    def groups(self) -> list[list[int]]:
+        if self.unit_owning_user_ids and isinstance(self.unit_owning_user_ids[0], list):
+            return [list(group) for group in self.unit_owning_user_ids]  # type: ignore[arg-type]
+        return [list(self.unit_owning_user_ids)]  # type: ignore[list-item]
+
+    def is_grouped(self) -> bool:
+        return bool(self.unit_owning_user_ids and isinstance(self.unit_owning_user_ids[0], list))
+
+
+class UnitCreatedAccessoryGL(accessory_model.AccessoryListInfo):
+    # GL's create callback tests this on every list entry, whereas CN reads the
+    # top-level flag and expects created_accessory to be a single object.
+    reward_box_flag: bool = False
 
 
 class UnitCreateAccessoryResponse(common.TimestampMixin, user.UserDiffMixin):
-    created_accessory: accessory_model.AccessoryListInfo
+    created_accessory: accessory_model.AccessoryListInfo | list[UnitCreatedAccessoryGL]
     use_game_coin: int
     reward_box_flag: bool
     present_cnt: int
@@ -283,13 +312,42 @@ async def unit_createaccessory(
 ) -> UnitCreateAccessoryResponse:
     current_user = await user.get_current(context)
     before_user = await user.get_user_info(context, current_user)
-    result = await accessory.create_from_units(context, current_user, request.unit_owning_user_ids)
+    groups = request.groups()
+
+    if context.profile.value == "cn":
+        # The supplied CN Lua callback consumes one object and has no bulk-create
+        # path.  Accept a one-element nested form defensively, but never return a
+        # list shape the CN callback cannot consume.
+        if len(groups) != 1:
+            raise idol.error.IdolError(detail="bulk accessory creation is not supported by the CN client")
+        result = await accessory.create_from_units(context, current_user, groups[0])
+        created_accessory: accessory_model.AccessoryListInfo | list[UnitCreatedAccessoryGL] = (
+            await accessory.to_api_info(context, result.created)
+        )
+        use_game_coin = result.use_game_coin
+        reward_box_flag = result.reward_box_flag
+    else:
+        # GL uses the same response-list callback for manual and automatic
+        # creation.  Preserve one list entry per input group, including the
+        # per-entry reward-box flag read by the client Lua.
+        bulk = await accessory.create_from_unit_groups(context, current_user, groups)
+        created_accessory = []
+        for created, entry_reward_flag in zip(bulk.created, bulk.reward_box_flags, strict=True):
+            info = await accessory.to_api_info(context, created)
+            created_accessory.append(
+                UnitCreatedAccessoryGL.model_validate(
+                    {**info.model_dump(), "reward_box_flag": entry_reward_flag}
+                )
+            )
+        use_game_coin = bulk.use_game_coin
+        reward_box_flag = bulk.reward_box_flag
+
     return UnitCreateAccessoryResponse(
         before_user_info=before_user,
         after_user_info=await user.get_user_info(context, current_user),
-        created_accessory=await accessory.to_api_info(context, result.created),
-        use_game_coin=result.use_game_coin,
-        reward_box_flag=result.reward_box_flag,
+        created_accessory=created_accessory,
+        use_game_coin=use_game_coin,
+        reward_box_flag=reward_box_flag,
         present_cnt=await reward.count_presentbox(context, current_user),
         unit_removable_skill=await unit.get_removable_skill_info_request(context, current_user),
     )
@@ -354,8 +412,12 @@ async def unit_deckinfo(context: idol.SchoolIdolUserParams) -> UnitDeckInfoRespo
         if decklist is not None:
             deckpos: list[UnitDeckPositionInfoResponse] = []
             for j, unit_id in enumerate(decklist[1], 1):
-                if unit_id > 0:
-                    deckpos.append(UnitDeckPositionInfoResponse(position=j, unit_owning_user_id=unit_id))
+                if unit_id <= 0:
+                    continue
+                owned = await unit.get_unit(context, unit_id)
+                if owned is None or not await profile_projection.unit_supported(context, owned.unit_id):
+                    continue
+                deckpos.append(UnitDeckPositionInfoResponse(position=j, unit_owning_user_id=unit_id))
 
             deckinfo = UnitDeckInfo(
                 unit_deck_id=i,
@@ -379,9 +441,11 @@ async def unit_supporterall(context: idol.SchoolIdolUserParams) -> unit_model.Su
     current_user = await user.get_current(context)
     units = await unit.get_all_supporter_unit(context, current_user)
 
-    return unit_model.SupporterListInfoResponse(
-        unit_support_list=[unit_model.SupporterInfoResponse(unit_id=supp[0], amount=supp[1]) for supp in units]
-    )
+    visible_supporters: list[unit_model.SupporterInfoResponse] = []
+    for unit_id, amount in units:
+        if await profile_projection.unit_supported(context, unit_id):
+            visible_supporters.append(unit_model.SupporterInfoResponse(unit_id=unit_id, amount=amount))
+    return unit_model.SupporterListInfoResponse(unit_support_list=visible_supporters)
 
 
 @idol.register("unit", "unitAll")
@@ -391,7 +455,11 @@ async def unit_unitall(context: idol.SchoolIdolUserParams) -> UnitAllInfoRespons
     unit_result: dict[bool, list[unit_model.UnitInfoData]] = {False: [], True: []}
 
     for unit_data in await unit.get_all_units(context, current_user):
-        unit_serialized_data, _ = await unit.get_unit_data_full_info(context, unit_data)
+        if not await profile_projection.unit_supported(context, unit_data.unit_id):
+            continue
+        unit_serialized_data, _ = await unit.get_unit_data_full_info(
+            context, unit_data, native_costume_fallback=False
+        )
         unit_result[unit_data.active].append(unit_serialized_data)
 
     return UnitAllInfoResponse(active=unit_result[True], waiting=unit_result[False])

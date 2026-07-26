@@ -80,7 +80,7 @@ async def transfer_execute(
         if target_user.id == current_user.id:
             return _render(request, t, current_user, message="不能把数据迁移到当前同一账号。")
 
-        handover.swap_credentials(current_user, target_user)
+        await handover.swap_credentials(context, current_user, target_user)
         target_user.transfer_sha1 = None
         # The game API invalidates the current session.  A WebView operation has
         # no game-session token of its own, so invalidate both users' saved

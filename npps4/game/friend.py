@@ -7,6 +7,7 @@ from .. import util
 from ..db import main
 from ..system import common
 from ..system import friend
+from ..system import profile_projection
 from ..system import unit
 from ..system import unit_model
 from ..system import user
@@ -112,9 +113,8 @@ def _elapsed(ts: int) -> str:
 
 
 async def _resolve_display_user(context: idol.BasicSchoolIdolContext, display_user_id: int) -> main.User:
-    # CN client/honoka often displays invite_code as user_id in friend pages.
-    # Try both real user id and invite code so CN and global clients can refer to
-    # the same NPPS4 account without separate friend namespaces.
+    # Canonical social payloads use the internal account id.  Retain invite-code
+    # lookup as an input compatibility path for older responses and bookmarks.
     target = await user.get(context, display_user_id)
     if target is None:
         try:
@@ -127,13 +127,16 @@ async def _resolve_display_user(context: idol.BasicSchoolIdolContext, display_us
 
 
 async def _center_unit_info(context: idol.BasicSchoolIdolContext, target_user: main.User) -> common.CenterUnitInfo | None:
-    if target_user.center_unit_owning_user_id == 0:
+    projected = await profile_projection.navigation_unit(context, target_user)
+    if projected is None:
         return None
-    unit_data = await unit.get_unit(context, target_user.center_unit_owning_user_id)
-    unit_info = await unit.get_unit_info(context, unit_data.unit_id)
-    if unit_info is None:
-        return None
-    unit_data_full_info, unit_stats = await unit.get_unit_data_full_info(context, unit_data)
+    unit_data, _unit_info, unit_data_full_info, unit_stats = projected
+    removable_skills = await profile_projection.filter_removable_skills(
+        context, await unit.get_unit_removable_skills(context, unit_data)
+    )
+    display_costume = await profile_projection.social_costume(
+        context, target_user, projected
+    )
     return common.CenterUnitInfo(
         unit_id=unit_data_full_info.unit_id,
         level=unit_data_full_info.level,
@@ -147,30 +150,35 @@ async def _center_unit_info(context: idol.BasicSchoolIdolContext, target_user: m
         is_rank_max=unit_data_full_info.is_rank_max,
         is_level_max=unit_data_full_info.is_level_max,
         unit_skill_exp=unit_data_full_info.unit_skill_exp,
-        removable_skill_ids=await unit.get_unit_removable_skills(context, unit_data),
+        removable_skill_ids=removable_skills,
         unit_removable_skill_capacity=unit_data_full_info.unit_removable_skill_capacity,
+        costume=display_costume,
     )
-
 
 async def _friend_list_item(
     context: idol.BasicSchoolIdolContext, link: main.FriendLink
-) -> FriendListFriend:
+) -> FriendListFriend | None:
     target = await user.get(context, link.friend_user_id)
     if target is None:
-        # Orphaned link: keep response robust; caller may clean it up later.
-        raise idol.error.by_code(idol.error.ERROR_CODE_FRIEND_USER_NOT_EXISTS)
+        # Orphaned link: hide the unsafe row without mutating the friend graph.
+        return None
+    center = await _center_unit_info(context, target)
+    if center is None:
+        # A user with no card representable in this client profile must not be
+        # serialized as center_unit_info=null; the KLab UI assumes a table.
+        return None
     return FriendListFriend(
         is_new=link.is_new,
         user_data=FriendListFriendUserData(
-            user_id=int(target.invite_code) if target.invite_code.isdigit() else target.id,
+            user_id=target.id,
             name=target.name,
             level=target.level,
             elapsed_time_from_login=_elapsed(target.update_date),
             elapsed_time_from_applied=_elapsed(max(link.update_date, link.insert_date)),
             comment=target.bio,
         ),
-        center_unit_info=await _center_unit_info(context, target),
-        setting_award_id=target.active_award,
+        center_unit_info=center,
+        setting_award_id=await profile_projection.award_id(context, target.active_award),
     )
 
 
@@ -180,7 +188,11 @@ async def friend_list(context: idol.SchoolIdolUserParams, request: FriendListReq
     status = _list_type_to_status(request.type)
     total = await friend.count_by_status(context, current_user, status)
     links = await friend.list_links(context, current_user, status, sort=request.sort, page=request.page)
-    items = [await _friend_list_item(context, link) for link in links]
+    items: list[FriendListFriend] = []
+    for link in links:
+        item = await _friend_list_item(context, link)
+        if item is not None:
+            items.append(item)
     await friend.mark_seen(context, links)
     return FriendListResponse(item_count=total, friend_list=items, new_friend_list=[])
 
@@ -196,13 +208,22 @@ async def friend_search(context: idol.SchoolIdolUserParams, request: FriendSearc
 
     target_user = await user.find_by_invite_code(context, invite_code_int)
 
-    if target_user is None or target_user.center_unit_owning_user_id == 0:
+    if target_user is None:
         raise idol.error.by_code(idol.error.ERROR_CODE_FRIEND_USER_NOT_EXISTS)
 
-    unit_data = await unit.get_unit(context, target_user.center_unit_owning_user_id)
-    unit_info = await unit.get_unit_info(context, unit_data.unit_id)
-    assert unit_info is not None
-    unit_data_full_info, unit_stats = await unit.get_unit_data_full_info(context, unit_data)
+    projected = await profile_projection.navigation_unit(context, target_user)
+    if projected is None:
+        # The account exists, but its center card is region-exclusive.  Do not
+        # serialize an invalid master ID into the receiving client.
+        raise idol.error.by_code(idol.error.ERROR_CODE_FRIEND_USER_NOT_EXISTS)
+    unit_data, unit_info, unit_data_full_info, unit_stats = projected
+    setting_award_id = await profile_projection.award_id(context, target_user.active_award)
+    removable_skill_ids = await profile_projection.filter_removable_skills(
+        context, await unit.get_unit_removable_skills(context, unit_data)
+    )
+    display_costume = await profile_projection.social_costume(
+        context, target_user, projected
+    )
 
     return FriendSearchResponse(
         user_info=FriendSearchUserInfo(
@@ -247,10 +268,11 @@ async def friend_search(context: idol.SchoolIdolUserParams, request: FriendSearc
             smile=unit_stats.smile,
             cute=unit_stats.pure,
             cool=unit_stats.cool,
-            setting_award_id=target_user.active_award,
-            removable_skill_ids=await unit.get_unit_removable_skills(context, unit_data),
+            setting_award_id=setting_award_id,
+            removable_skill_ids=removable_skill_ids,
+            costume=display_costume,
         ),
-        setting_award_id=target_user.active_award,
+        setting_award_id=setting_award_id,
         is_alliance=False,
         friend_status=await friend.get_friend_status(context, current_user, target_user),
     )

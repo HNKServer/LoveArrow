@@ -7,7 +7,7 @@ import pydantic
 from .. import idol
 from .. import util
 from ..system import class_system as class_system_module
-from ..system import cn_content_master
+from ..system import content_master
 from ..system import common
 from ..system import eventscenario
 from ..system import museum
@@ -32,7 +32,6 @@ class EventScenarioInfo(pydantic.BaseModel):
     open_date: str
     chapter_list: list[EventScenarioChapterList]
     event_scenario_btn_asset: str
-    event_scenario_se_btn_asset: str | None = None
 
 
 class EventScenarioStatusResponse(pydantic.BaseModel):
@@ -81,31 +80,36 @@ class EventScenarioRewardResponse(user.UserDiffMixin, common.TimestampMixin):
     present_cnt: int
 
 
-def _event_banner_id(event_id: int) -> int:
-    # These two historical events reuse another event's banner in the final CN
-    # client.  This mapping comes from the exact client behavior and honoka's
-    # compatibility implementation; all other IDs use their own asset number.
+def _event_banner_id(context: idol.BasicSchoolIdolContext, event_id: int) -> int:
+    """Return the real banner asset number used by the final clients.
+
+    The response field is not always derived directly from ``event_id``.
+    honoka-chan proves the CN-only ``10001 -> 38`` compatibility row, while
+    LLSIF@Home's final GL archive proves that post-merge event IDs 221..228
+    reuse banner assets 215..222.  Returning the raw event ID for those rows
+    makes GL request files which never existed and leaves blank thumbnails.
+    """
+    del context  # mapping is shared by both final CN and GL catalogues
     if event_id == 10001:
         return 38
-    if event_id == 221:
-        return 215
+    if 221 <= event_id <= 228:
+        return event_id - 6
     return event_id
 
 
-def _event_banner_assets(event_id: int) -> tuple[str, str]:
-    asset_id = _event_banner_id(event_id)
-    base = f"assets/image/ui/eventscenario/{asset_id}_se_ba_t"
-    return f"{base}.png", f"{base}se.png"
+def _event_banner_asset(context: idol.BasicSchoolIdolContext, event_id: int) -> str:
+    asset_id = _event_banner_id(context, event_id)
+    return f"assets/image/ui/eventscenario/{asset_id}_se_ba_t.png"
 
 
-@idol.register("eventscenario", "status")
+@idol.register("eventscenario", "status", exclude_none=True)
 async def eventscenario_status(context: idol.SchoolIdolUserParams) -> EventScenarioStatusResponse:
     current_user = await user.get_current(context)
     unlock_rows = await eventscenario.get_all(context, current_user)
     unlock_by_id = {row.event_scenario_id: row for row in unlock_rows}
 
-    grouped: dict[int, list[cn_content_master.EventScenarioMaster]] = collections.defaultdict(list)
-    for master in cn_content_master.event_scenarios():
+    grouped: dict[int, list[content_master.EventScenarioMaster]] = collections.defaultdict(list)
+    for master in content_master.event_scenarios(context.profile):
         if master.event_scenario_id in unlock_by_id:
             grouped[master.event_id].append(master)
 
@@ -133,15 +137,13 @@ async def eventscenario_status(context: idol.SchoolIdolUserParams) -> EventScena
                 )
             )
 
-        btn_asset, se_btn_asset = _event_banner_assets(event_id)
         open_date = masters[0].open_date.replace("/", "-")
         result.append(
             EventScenarioInfo(
                 event_id=event_id,
                 open_date=open_date,
                 chapter_list=chapter_list,
-                event_scenario_btn_asset=btn_asset,
-                event_scenario_se_btn_asset=se_btn_asset,
+                event_scenario_btn_asset=_event_banner_asset(context, event_id),
             )
         )
 
@@ -153,7 +155,7 @@ async def eventscenario_open(
     context: idol.SchoolIdolUserParams, request: EventScenarioRequest
 ) -> EventScenarioOpenResponse:
     current_user = await user.get_current(context)
-    master = cn_content_master.event_by_id(request.event_scenario_id)
+    master = content_master.event_by_id(context.profile, request.event_scenario_id)
     if master is None or not await eventscenario.is_unlocked(context, current_user, request.event_scenario_id):
         raise idol.error.IdolError(detail="event scenario is not available", http_code=403)
 
@@ -171,7 +173,7 @@ async def eventscenario_startup(
     context: idol.SchoolIdolUserParams, request: EventScenarioRequest
 ) -> EventScenarioStartupResponse:
     current_user = await user.get_current(context)
-    master = cn_content_master.event_by_id(request.event_scenario_id)
+    master = content_master.event_by_id(context.profile, request.event_scenario_id)
     state = await eventscenario.get(context, current_user, request.event_scenario_id)
     if master is None or state is None:
         raise idol.error.IdolError(detail="event scenario is not available", http_code=403)
@@ -192,7 +194,7 @@ async def eventscenario_reward(
     context: idol.SchoolIdolUserParams, request: EventScenarioRewardRequest
 ) -> EventScenarioRewardResponse:
     current_user = await user.get_current(context)
-    master = cn_content_master.event_by_id(request.event_scenario_id)
+    master = content_master.event_by_id(context.profile, request.event_scenario_id)
     state = await eventscenario.get(context, current_user, request.event_scenario_id)
     if master is None or state is None:
         raise idol.error.IdolError(detail="event scenario is not available", http_code=403)

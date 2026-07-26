@@ -119,7 +119,7 @@ async def secretbox_gachapon(context: idol.SchoolIdolUserParams, request: Secret
     secretbox_id, button_index, cost_index = secretbox.decode_cost_id(request.id)
 
     try:
-        secretbox_data = secretbox.get_secretbox_data(secretbox_id)
+        secretbox_data = await secretbox.get_secretbox_data(context, secretbox_id)
     except KeyError as e:
         util.log("uh oh secretbox_data", secretbox_id, e=e)
         raise idol.error.by_code(idol.error.ERROR_CODE_SECRET_BOX_NOT_EXIST) from e
@@ -144,7 +144,7 @@ async def secretbox_gachapon(context: idol.SchoolIdolUserParams, request: Secret
 
     # Roll units
     unit_roll = secretbox.roll_units(
-        secretbox_id,
+        secretbox_data,
         secretbox_button.unit_count,
         guarantee_rarity=secretbox_button.guaranteed_rarity,
         guarantee_amount=secretbox_button.guarantee_specific_rarity_amount,
@@ -266,6 +266,9 @@ async def secretbox_showdetail(
     return SecretboxShowDetailResponse(
         # FIXME: Don't hardcode URLs
         # TODO: Make Member Filter in secretbox detail work.
-        url=f"/webview.php/secretbox/detail?secretbox_id={request.secret_box_id}",
+        url=(
+            f"/webview.php/secretbox/detail?secretbox_id={request.secret_box_id}"
+            f"&profile={context.profile.value}"
+        ),
         rule_url="/something",
     )

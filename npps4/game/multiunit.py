@@ -7,7 +7,7 @@ import pydantic
 from .. import idol
 from .. import util
 from ..system import class_system as class_system_module
-from ..system import cn_content_master
+from ..system import content_master
 from ..system import common
 from ..system import multiunit
 from ..system import museum
@@ -80,8 +80,8 @@ async def multiunit_multiunitscenariostatus(context: idol.SchoolIdolUserParams) 
     unlock_rows = await multiunit.get_all(context, current_user)
     unlock_by_id = {row.multi_unit_scenario_id: row for row in unlock_rows}
 
-    grouped: dict[int, list[cn_content_master.MultiUnitScenarioMaster]] = collections.defaultdict(list)
-    for master in cn_content_master.multi_unit_scenarios():
+    grouped: dict[int, list[content_master.MultiUnitScenarioMaster]] = collections.defaultdict(list)
+    for master in content_master.multi_unit_scenarios(context.profile):
         if master.multi_unit_scenario_id in unlock_by_id:
             grouped[master.multi_unit_id].append(master)
 
@@ -130,7 +130,7 @@ async def multiunit_scenario_startup(
     context: idol.SchoolIdolUserParams, request: MultiUnitScenarioRequest
 ) -> MultiUnitScenarioStartupResponse:
     current_user = await user.get_current(context)
-    master = cn_content_master.multi_by_id(request.multi_unit_scenario_id)
+    master = content_master.multi_by_id(context.profile, request.multi_unit_scenario_id)
     state = await multiunit.get(context, current_user, request.multi_unit_scenario_id)
     if master is None or state is None:
         raise idol.error.IdolError(detail="multi-unit scenario is not available", http_code=403)
@@ -143,7 +143,7 @@ async def multiunit_scenario_reward(
     context: idol.SchoolIdolUserParams, request: MultiUnitScenarioRewardRequest
 ) -> MultiUnitScenarioRewardResponse:
     current_user = await user.get_current(context)
-    master = cn_content_master.multi_by_id(request.multi_unit_scenario_id)
+    master = content_master.multi_by_id(context.profile, request.multi_unit_scenario_id)
     state = await multiunit.get(context, current_user, request.multi_unit_scenario_id)
     if master is None or state is None:
         raise idol.error.IdolError(detail="multi-unit scenario is not available", http_code=403)

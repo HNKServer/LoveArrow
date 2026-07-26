@@ -776,8 +776,10 @@ async def pull_precise_score_with_beatmap(
 
 
 async def get_cleared_live_count(context: idol.BasicSchoolIdolContext, /, user: main.User) -> dict[int, int]:
-    q = sqlalchemy.select(main.LiveClear.difficulty, sqlalchemy.func.count(main.LiveClear.live_difficulty_id)).group_by(
-        main.LiveClear.difficulty
+    q = (
+        sqlalchemy.select(main.LiveClear.difficulty, sqlalchemy.func.count(main.LiveClear.live_difficulty_id))
+        .where(main.LiveClear.user_id == user.id)
+        .group_by(main.LiveClear.difficulty)
     )
     result = await context.db.main.execute(q)
     return {r[0]: r[1] for r in result}

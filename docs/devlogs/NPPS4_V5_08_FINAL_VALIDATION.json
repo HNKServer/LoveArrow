@@ -1,0 +1,313 @@
+{
+  "build_id": "v5.08-accessory-tab-gl-auto-create",
+  "passed": 61,
+  "failed": 0,
+  "device_retest_required": true,
+  "checks": [
+    {
+      "name": "changed Python modules parse",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ranking transport-safe routes retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ranking/player game error fallback retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "receiver-side Live guest leader skill validation retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "partyList uses validated guest projection",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "live/play uses validated guest projection",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "event-story nullable field omission retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "signed game response path retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "v5.08 build ID present",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Android versionCode 508",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Android versionName 0.5.8",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "accessory contract has exactly four groups",
+      "passed": true,
+      "detail": "4"
+    },
+    {
+      "name": "accessory group 0 unit order exact",
+      "passed": true,
+      "detail": "[1, 2, 3, 4, 5, 6, 7, 8, 9]"
+    },
+    {
+      "name": "accessory group 0 asset order exact",
+      "passed": true,
+      "detail": "['assets/image/accessory/list/list_1.png', 'assets/image/accessory/list/list_2.png', 'assets/image/accessory/list/list_3.png', 'assets/image/accessory/list/list_4.png', 'assets/image/accessory/list/list_5.png', 'assets/image/accessory/list/list_6.png', 'assets/image/accessory/list/list_7.png', 'assets/image/accessory/list/list_8.png', 'assets/image/accessory/list/list_9.png']"
+    },
+    {
+      "name": "accessory group 0 has no duplicate unit",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "accessory group 0 has no duplicate asset",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "accessory group 1 unit order exact",
+      "passed": true,
+      "detail": "[101, 102, 103, 104, 105, 106, 107, 108, 109]"
+    },
+    {
+      "name": "accessory group 1 asset order exact",
+      "passed": true,
+      "detail": "['assets/image/accessory/list/list_10.png', 'assets/image/accessory/list/list_11.png', 'assets/image/accessory/list/list_12.png', 'assets/image/accessory/list/list_13.png', 'assets/image/accessory/list/list_14.png', 'assets/image/accessory/list/list_15.png', 'assets/image/accessory/list/list_16.png', 'assets/image/accessory/list/list_17.png', 'assets/image/accessory/list/list_18.png']"
+    },
+    {
+      "name": "accessory group 1 has no duplicate unit",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "accessory group 1 has no duplicate asset",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "accessory group 2 unit order exact",
+      "passed": true,
+      "detail": "[201, 202, 203, 204, 205, 206, 207, 208, 209, 212, 213, 214]"
+    },
+    {
+      "name": "accessory group 2 asset order exact",
+      "passed": true,
+      "detail": "['assets/image/accessory/list/list_24.png', 'assets/image/accessory/list/list_25.png', 'assets/image/accessory/list/list_26.png', 'assets/image/accessory/list/list_27.png', 'assets/image/accessory/list/list_28.png', 'assets/image/accessory/list/list_29.png', 'assets/image/accessory/list/list_30.png', 'assets/image/accessory/list/list_31.png', 'assets/image/accessory/list/list_32.png', 'assets/image/accessory/list/list_33.png', 'assets/image/accessory/list/list_34.png', 'assets/image/accessory/list/list_35.png']"
+    },
+    {
+      "name": "accessory group 2 has no duplicate unit",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "accessory group 2 has no duplicate asset",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "accessory group 3 unit order exact",
+      "passed": true,
+      "detail": "[301, 302, 303, 304, 305, 306, 307, 308, 309]"
+    },
+    {
+      "name": "accessory group 3 asset order exact",
+      "passed": true,
+      "detail": "['assets/image/accessory/list/list_19.png', 'assets/image/accessory/list/list_20.png', 'assets/image/accessory/list/list_21.png', 'assets/image/accessory/list/list_22.png', 'assets/image/accessory/list/list_23.png', 'assets/image/accessory/list/list_36.png', 'assets/image/accessory/list/list_37.png', 'assets/image/accessory/list/list_38.png', 'assets/image/accessory/list/list_39.png']"
+    },
+    {
+      "name": "accessory group 3 has no duplicate unit",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "accessory group 3 has no duplicate asset",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no nonexistent list_40+ asset advertised",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "arithmetic fallback removed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "tab contract loaded as package resource",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "implementation token present: list[int] | list[list[int]]",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "implementation token present: create_from_unit_groups",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "implementation token present: UnitCreatedAccessoryGL",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "implementation token present: context.profile.value == \"cn\"",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "implementation token present: \"reward_box_flag\": entry_reward_flag",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "transfer page distinguishes SIF1 handover from SIF2 linkage",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "bundled accessory mapping equals supplied honoka mapping",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "NPPS4 /ewexport route retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ew /user/sif/migrate route present",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ew polls configured NPPS4 /ewexport",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "NPPS4 and ew use the same double-SHA1 construction",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ew imports SIF1 album units",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ew rank/title import boundary remains explicit",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ew documents configurable NPPS4 address",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Python compileall succeeds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Android and PC Python trees are byte-identical",
+      "passed": true,
+      "detail": "2317 vs 2317 files"
+    },
+    {
+      "name": "verified CN asset unchanged: 4_0_999.zip",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "verified CN asset unchanged: npps4_data_transfer.png",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ranking/player safe fallback retained",
+      "passed": true,
+      "detail": "(1, 600)"
+    },
+    {
+      "name": "ranking/live safe empty success retained",
+      "passed": true,
+      "detail": "{'page': 0, 'rank': 0, 'items': [], 'total_cnt': 0, 'present_cnt': 0}"
+    },
+    {
+      "name": "missing receiver-side guest leader skill rejected",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "valid receiver-side guest leader skill accepted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "request model accepts [21, 22]",
+      "passed": true,
+      "detail": "[[21, 22]]"
+    },
+    {
+      "name": "request model accepts [[21, 22], [26, 27]]",
+      "passed": true,
+      "detail": "[[21, 22], [26, 27]]"
+    },
+    {
+      "name": "request model rejects empty/mixed/empty-inner shapes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "CN created_accessory serializes as one object",
+      "passed": true,
+      "detail": "{'accessory_owning_user_id': 1, 'accessory_id': 2, 'exp': 0, 'next_exp': 0, 'level': 1, 'max_level': 1, 'rank_up_count': 0, 'favorite_flag': False}"
+    },
+    {
+      "name": "GL created_accessory serializes as a list with per-entry flag",
+      "passed": true,
+      "detail": "[{'accessory_owning_user_id': 1, 'accessory_id': 2, 'exp': 0, 'next_exp': 0, 'level': 1, 'max_level': 1, 'rank_up_count': 0, 'favorite_flag': False, 'reward_box_flag': False}, {'accessory_owning_user_id': 3, 'accessory_id': 2, 'exp': 0, 'next_exp': 0, 'level': 1, 'max_level': 1, 'rank_up_count': 0, 'favorite_flag': False, 'reward_box_flag': True}]"
+    },
+    {
+      "name": "bulk helper preserves one output per input group",
+      "passed": true,
+      "detail": "[[1, 2], [4]]"
+    },
+    {
+      "name": "bulk helper aggregates coin and reward flags",
+      "passed": true,
+      "detail": "AccessoryBulkCreateResult(created=[<__main__.dynamic_bulk_helper.<locals>.UserAccessory object at 0x7f78f248c1a0>, <__main__.dynamic_bulk_helper.<locals>.UserAccessory object at 0x7f78f25920d0>], use_game_coin=7, reward_box_flags=[False, True])"
+    },
+    {
+      "name": "bulk helper rejects duplicate card use across groups",
+      "passed": true,
+      "detail": ""
+    }
+  ]
+}

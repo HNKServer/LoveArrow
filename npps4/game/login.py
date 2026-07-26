@@ -7,6 +7,7 @@ from ..config import config
 from ..db import main
 from ..system import achievement
 from ..system import common
+from ..system import costume
 from ..system import friend
 from ..system import greet
 from ..system import onboarding
@@ -192,11 +193,14 @@ async def login_login(context: idol.SchoolIdolAuthParams, request: LoginRequest)
     # Log
     util.log("Login credentials decrypted", "login_key=<redacted>", "password=<redacted>")
 
-    # Find user
-    u = await user.find_by_key(context, str(loginkey, "UTF-8"))
-    if u is None or (not u.check_passwd(str(passwd, "UTF-8"))):
+    # Find the current profile's identity, while keeping game progress shared.
+    identity = await user.find_identity_by_key(context, str(loginkey, "UTF-8"))
+    if identity is None or not identity.check_passwd(str(passwd, "UTF-8")):
         # This will send "Your data has been transfered succesfully" message to the SIF client.
         raise error.IdolError(error_code=407, status_code=600, detail="Login not found")
+    u = await context.db.main.get(main.User, identity.user_id)
+    if u is None:
+        raise error.IdolError(error_code=407, status_code=600, detail="Login identity is orphaned")
 
     # Login
     await session.invalidate_current(context)
@@ -267,6 +271,19 @@ async def login_authkey(context: idol.SchoolIdolParams, request: AuthkeyRequest)
         raise fastapi.HTTPException(400, f"Bad client key: {e}") from None
     if not client_key:
         raise fastapi.HTTPException(400, "Bad client key")
+
+    rsa_profile = config.get_server_rsa_profile(server_rsa_label)
+    if rsa_profile is not None:
+        if not config.profile_enabled(rsa_profile):
+            raise fastapi.HTTPException(503, detail=f"{rsa_profile.value.upper()} client profile is disabled")
+        if rsa_profile != context.profile:
+            util.log(
+                "Client profile resolved from RSA key",
+                f"temporary={context.profile.value}",
+                f"rsa_label={server_rsa_label}",
+                f"resolved={rsa_profile.value}",
+            )
+        context.select_profile(rsa_profile)
 
     # Preserve original behavior for clients that do send auth_data, but do not
     # make CN startup fail if it is missing or malformed.  honoka-chan also
@@ -357,12 +374,10 @@ async def login_topinfoonce(context: idol.SchoolIdolUserParams) -> TopInfoOnceRe
             secretbox=True,
             birthday=True,
         ),
-        # Do not advertise menus whose client-visible route families are absent.
-        # Arena has no implemented handlers; costume only has the boot-time list
-        # endpoint but lacks status/dress-up/make operations.  Accessory stays
-        # enabled because list, tab, wear and favorite mutations are real.
+        # Arena remains hidden. Costume is now a complete persistent route
+        # family; this field reflects the user's profile-specific on/off state.
         open_arena=False,
-        costume_status=False,
+        costume_status=await costume.is_enabled(context, current_user),
         open_accessory=True,
         arena_si_skill_unique_check=False,
         open_v98=True,

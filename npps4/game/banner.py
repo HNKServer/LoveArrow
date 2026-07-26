@@ -1,12 +1,10 @@
-import time
-
 import pydantic
 
-from .. import data
 from .. import idol
 from .. import util
 from ..system import client_capabilities
 from ..system import transfer_web
+from ..system import secretbox
 from ..system import user
 
 
@@ -53,24 +51,25 @@ def _cn_webview_banner(
     )
 
 
-def _cn_secretbox_banners(now: int) -> list[BannerInfo]:
-    """Build type-1 home banners from the exact pages exposed by secretbox/all.
-
-    This keeps the home carousel and the scouting screen on the same IDs and
-    asset paths.  It avoids honoka's fixed 1718..1721 IDs when the operator has
-    edited server_data.json, while retaining the same CN type-1 jump contract.
-    """
+async def _secretbox_banners(context: idol.BasicSchoolIdolContext) -> list[BannerInfo]:
+    """Build home jumps from the same projected pages returned by secretbox/all."""
     start, end = _banner_dates()
     result: list[BannerInfo] = []
     seen_assets: set[str] = set()
     pages = sorted(
-        data.get().secretbox_data.values(),
-        key=lambda item: (int(item.member_category), -int(item.order), int(item.secretbox_id)),
+        await secretbox.get_visible_secretboxes(context),
+        key=lambda item: (
+            int(item.member_category),
+            int(item.order),
+            min(int(button.unit_count) for button in item.buttons),
+            int(item.secretbox_id),
+        ),
     )
     for page in pages:
-        if not (int(page.start_time) <= now <= int(page.end_time)):
-            continue
-        asset = str(page.menu_asset or "").strip()
+        asset = secretbox.resolve_menu_asset(context, page).strip()
+        # The official single and 10x blue-ticket pages intentionally share a
+        # visual asset. Keep both pages in scouting, but use one home tile and
+        # make its jump select the single-draw page (the least surprising entry).
         if not asset or asset in seen_assets:
             continue
         seen_assets.add(asset)
@@ -81,7 +80,6 @@ def _cn_secretbox_banners(now: int) -> list[BannerInfo]:
                 asset_path=asset,
                 fixed_flag=False,
                 back_side=False,
-                # Use a stable positive banner ID independent of Java-hash IDs.
                 banner_id=101000 + len(result) + 1,
                 start_date=start,
                 end_date=end,
@@ -112,7 +110,7 @@ async def banner_bannerlist(context: idol.SchoolIdolUserParams) -> BannerListRes
                 back_side=False,
             )
         )
-        banner_list.extend(_cn_secretbox_banners(int(time.time())))
+        banner_list.extend(await _secretbox_banners(context))
         # Back side: one valid WebView item.  Returning no back-side item made
         # the CN flip task enter an empty native render list and SIGTRAP.
         banner_list.append(
@@ -146,6 +144,7 @@ async def banner_bannerlist(context: idol.SchoolIdolUserParams) -> BannerListRes
                     end_date=end,
                 )
             )
+        banner_list.extend(await _secretbox_banners(context))
         banner_list.append(
             BannerInfo(
                 banner_type=2,

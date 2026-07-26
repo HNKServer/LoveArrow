@@ -21,7 +21,30 @@ class UnitSupportItem(item_model.Item):
         return self.item_id
 
 
-class UnitInfoBase(pydantic.BaseModel):
+class CostumeInfo(pydantic.BaseModel):
+    unit_id: int
+    is_rank_max: bool
+    is_signed: bool
+
+
+class OptionalCostumeModel(pydantic.BaseModel):
+    """Omit an absent Lua-facing costume instead of emitting JSON null.
+
+    KLab's Lua JSON bridge exposes JSON null as a userdata sentinel. Client
+    code then attempts to index it as a costume table and asserts. Other None
+    fields keep their v5.12 serialization behavior; only ``costume=None`` is
+    removed from this family of payloads.
+    """
+
+    @pydantic.model_serializer(mode="wrap")
+    def _serialize_without_null_costume(self, handler: Any) -> dict[str, Any]:
+        data = handler(self)
+        if isinstance(data, dict) and data.get("costume") is None:
+            data.pop("costume", None)
+        return data
+
+
+class UnitInfoBase(OptionalCostumeModel):
     unit_owning_user_id: int
     unit_rarity_id: int | None = None
     exp: int
@@ -46,6 +69,7 @@ class UnitInfoBase(pydantic.BaseModel):
     is_skill_level_max: bool
     is_removable_skill_capacity_max: bool
     insert_date: str = ""
+    costume: CostumeInfo | None = None
 
     @pydantic.computed_field
     @property

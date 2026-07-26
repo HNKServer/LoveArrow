@@ -4,7 +4,8 @@ import sqlalchemy.orm
 import sqlalchemy.pool
 
 from . import common
-from ..download import download
+from . import master_registry
+from .. import client_profile
 
 
 class SubScenario(common.GameDBBase, common.MaybeEncrypted):
@@ -30,14 +31,6 @@ class SubScenario(common.GameDBBase, common.MaybeEncrypted):
     scenario_char_asset_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column()
 
 
-engine = sqlalchemy.ext.asyncio.create_async_engine(
-    f"sqlite+aiosqlite:///file:{download.get_db_path('subscenario')}?mode=ro&uri=true",
-    poolclass=sqlalchemy.pool.NullPool,
-    connect_args={"check_same_thread": False},
-)
-sessionmaker = sqlalchemy.ext.asyncio.async_sessionmaker(engine)
 
-
-def get_sessionmaker():
-    global sessionmaker
-    return sessionmaker
+def get_sessionmaker(profile: client_profile.ClientProfile | str | None = None):
+    return master_registry.get_sessionmaker("subscenario", profile)

@@ -2,12 +2,14 @@ import pydantic
 
 from . import museum
 from . import unit
+from . import profile_projection
+from . import unit_model
 from .. import idol
 from .. import util
 from ..db import main
 
 
-class ProfileUnitInfo(pydantic.BaseModel):
+class ProfileUnitInfo(unit_model.OptionalCostumeModel):
     unit_owning_user_id: int
     unit_id: int
     exp: int
@@ -37,16 +39,26 @@ class ProfileUnitInfo(pydantic.BaseModel):
     total_cool: int
     total_hp: int
     removable_skill_ids: list[int]
+    costume: unit_model.CostumeInfo | None = None
 
 
 async def to_profile_unit_info(
-    context: idol.BasicSchoolIdolContext, unit_data: main.Unit, museum_param: museum.MuseumParameterData
+    context: idol.BasicSchoolIdolContext,
+    unit_data: main.Unit,
+    museum_param: museum.MuseumParameterData,
+    *,
+    display_costume: unit_model.CostumeInfo | None = None,
 ):
     unit_info = await unit.get_unit_info(context, unit_data.unit_id)
     if unit_info is None:
         raise ValueError("unit_info is none")
 
-    unit_full_data, unit_stats = await unit.get_unit_data_full_info(context, unit_data)
+    unit_full_data, unit_stats = await unit.get_unit_data_full_info(
+        context,
+        unit_data,
+        native_costume_fallback=True,
+        social_costume_projection=True,
+    )
     # Calculate unit level
     unit_rarity = await unit.get_unit_rarity(context, unit_info.rarity)
     if unit_rarity is None:
@@ -55,6 +67,9 @@ async def to_profile_unit_info(
     idolized = unit_data.rank == unit_info.rank_max
     real_max_exp = 0 if unit_stats.level == unit_rarity.before_level_max and not idolized else unit_stats.next_exp
     removable_skill_max = unit_data.unit_removable_skill_capacity == unit_info.max_removable_skill_capacity
+    removable_skill_ids = await profile_projection.filter_removable_skills(
+        context, await unit.get_unit_removable_skills(context, unit_data)
+    )
     return ProfileUnitInfo(
         unit_owning_user_id=unit_data.id,
         unit_id=unit_data.unit_id,
@@ -83,6 +98,7 @@ async def to_profile_unit_info(
         is_signed=unit_data.is_signed,
         is_skill_level_max=unit_full_data.is_skill_level_max,
         is_removable_skill_capacity_max=removable_skill_max,
-        removable_skill_ids=[],
+        removable_skill_ids=removable_skill_ids,
+        costume=display_costume if display_costume is not None else unit_full_data.costume,
         insert_date=util.timestamp_to_datetime(unit_data.insert_date),
     )

@@ -1,0 +1,383 @@
+{
+  "version": "5.02",
+  "build_id": "v5.02-cn-announcement-flow-hotfix",
+  "android_validation": {
+    "passed": 37,
+    "failed": 0,
+    "checks": [
+      {
+        "name": "user.py imports config",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "profile comparison uses equality",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN startup creates user",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN startup creates profile identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN startup preserves password mirror",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL startup creates user",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL startup creates profile identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL startup preserves password mirror",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN claims v4.60 legacy identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL cannot steal CN/default legacy identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN actual login/startUp route returns user id",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN actual login/startUp route persists identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL actual login/startUp route returns user id",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL actual login/startUp route persists identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "actual login/startUp invalidates both bootstrap tokens",
+        "passed": true,
+        "detail": "['cn', 'gl']"
+      },
+      {
+        "name": "fabricated static id=12 page removed",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "static id=13 remains available",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "unknown static page remains a real miss",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "static route avoids cwd-only lookup",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "no fabricated age-rating content remains",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN static id=12 redirects to verified announcement endpoint",
+        "passed": true,
+        "detail": "status=302 location=/webview.php/announce/index"
+      },
+      {
+        "name": "static id=13 still returns HTML 200",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "unknown static route returns JSON 404",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "historical NPPS4 announcement still redirects to API documentation",
+        "passed": true,
+        "detail": "status=302 location=/main.php/api"
+      },
+      {
+        "name": "all runtime global names are module-bound or built-in",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "v5.02 build ID present",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "Android versionCode 502",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "Android versionName 0.5.2",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "SQLite connections close: npps4/system/content_master.py",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "SQLite connections close: npps4/system/cn_content_master.py",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "SQLite connections close: npps4/android_schema.py",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "SQLite connections close: npps4/alembic/env.py",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "Android/PC Python trees match",
+        "passed": true,
+        "detail": "left=2314 right=2314"
+      },
+      {
+        "name": "device log reproduces startup NameError",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "device log reproduces pre-startup id=12 404",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "device log reached login/authkey",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "device log failed login/startUp",
+        "passed": true,
+        "detail": ""
+      }
+    ]
+  },
+  "pc_validation": {
+    "passed": 35,
+    "failed": 0,
+    "checks": [
+      {
+        "name": "user.py imports config",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "profile comparison uses equality",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN startup creates user",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN startup creates profile identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN startup preserves password mirror",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL startup creates user",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL startup creates profile identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL startup preserves password mirror",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN claims v4.60 legacy identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL cannot steal CN/default legacy identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN actual login/startUp route returns user id",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN actual login/startUp route persists identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL actual login/startUp route returns user id",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "GL actual login/startUp route persists identity",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "actual login/startUp invalidates both bootstrap tokens",
+        "passed": true,
+        "detail": "['cn', 'gl']"
+      },
+      {
+        "name": "fabricated static id=12 page removed",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "static id=13 remains available",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "unknown static page remains a real miss",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "static route avoids cwd-only lookup",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "no fabricated age-rating content remains",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "CN static id=12 redirects to verified announcement endpoint",
+        "passed": true,
+        "detail": "status=302 location=/webview.php/announce/index"
+      },
+      {
+        "name": "static id=13 still returns HTML 200",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "unknown static route returns JSON 404",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "historical NPPS4 announcement still redirects to API documentation",
+        "passed": true,
+        "detail": "status=302 location=/main.php/api"
+      },
+      {
+        "name": "all runtime global names are module-bound or built-in",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "v5.02 build ID present",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "SQLite connections close: npps4/system/content_master.py",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "SQLite connections close: npps4/system/cn_content_master.py",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "SQLite connections close: npps4/android_schema.py",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "SQLite connections close: npps4/alembic/env.py",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "Android/PC Python trees match",
+        "passed": true,
+        "detail": "left=2314 right=2314"
+      },
+      {
+        "name": "device log reproduces startup NameError",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "device log reproduces pre-startup id=12 404",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "device log reached login/authkey",
+        "passed": true,
+        "detail": ""
+      },
+      {
+        "name": "device log failed login/startUp",
+        "passed": true,
+        "detail": ""
+      }
+    ]
+  },
+  "announcement_chain": [
+    "/webview.php/static/index?id=12",
+    "302 /webview.php/announce/index",
+    "302 /main.php/api"
+  ],
+  "fabricated_age_page_removed": true,
+  "requires_device_verification": true
+}

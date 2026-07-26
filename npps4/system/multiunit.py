@@ -4,23 +4,27 @@ import sqlalchemy
 
 from .. import idol
 from ..db import main
-from . import cn_content_master
+from . import content_master
 
 
 async def valid(context: idol.BasicSchoolIdolContext, multi_unit_scenario_id: int) -> bool:
-    return cn_content_master.multi_by_id(multi_unit_scenario_id) is not None
+    return content_master.multi_by_id(context.profile, multi_unit_scenario_id) is not None
 
 
 async def get(context: idol.BasicSchoolIdolContext, user: main.User, multi_unit_scenario_id: int):
     q = sqlalchemy.select(main.MultiUnitScenarioUnlock).where(
         main.MultiUnitScenarioUnlock.user_id == user.id,
+        main.MultiUnitScenarioUnlock.profile == context.profile.value,
         main.MultiUnitScenarioUnlock.multi_unit_scenario_id == multi_unit_scenario_id,
     )
     return (await context.db.main.execute(q)).scalar()
 
 
 async def get_all(context: idol.BasicSchoolIdolContext, user: main.User):
-    q = sqlalchemy.select(main.MultiUnitScenarioUnlock).where(main.MultiUnitScenarioUnlock.user_id == user.id)
+    q = sqlalchemy.select(main.MultiUnitScenarioUnlock).where(
+        main.MultiUnitScenarioUnlock.user_id == user.id,
+        main.MultiUnitScenarioUnlock.profile == context.profile.value,
+    )
     return list((await context.db.main.execute(q)).scalars())
 
 
@@ -40,6 +44,7 @@ async def unlock(
         context.db.main.add(
             main.MultiUnitScenarioUnlock(
                 user_id=user.id,
+                profile=context.profile.value,
                 multi_unit_scenario_id=multi_unit_scenario_id,
                 completed=completed,
                 is_new=is_new and not completed,

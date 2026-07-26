@@ -8,7 +8,7 @@
 2. 准备至少 8～12 张不收藏、不是主界面伙伴、也没有装备饰品的普通社员；制作饰品会永久消耗所选社员。
 3. 准备足够金币。
 4. 每执行一个操作后都退出对应页面再重新进入；关键步骤还应彻底重启游戏和服务端，以验证持久化。
-5. 出错时生成 Wrapper 诊断报告，并截取从操作前 5 秒到错误后 10 秒的 Logcat。重点搜索接口名：
+5. 出错时直接截取从操作前 5 秒到错误后 10 秒的 Logcat。重点搜索接口名：
    `accessoryAll`、`accessoryMaterialAll`、`accessoryTab`、`createAccessory`、`favoriteAccessory`、`wearAccessory`、`mergeAccessory`、`saleAccessory`。
 
 

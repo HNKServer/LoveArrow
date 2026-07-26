@@ -360,7 +360,7 @@ async def build_response(
         )
         response_data = {
             "response_data": response_data_dict,
-            "release_info": release_key.formatted(),
+            "release_info": release_key.formatted(context.profile),
             "status_code": status_code,
         }
         jsondatastr = json.dumps(response_data)
@@ -368,14 +368,14 @@ async def build_response(
 
     server_rsa_label = getattr(context, "server_rsa_label", None)
     response_headers = {
-        "Server-Version": config.get_latest_version_string(),
+        "Server-Version": config.get_latest_version_string(context.profile),
         "X-Message-Sign": util.sign_message(
             response, context.x_message_code, config.get_server_rsa_by_label(server_rsa_label)
         ),
         "status_code": str(status_code),
     }
 
-    if config.use_cn_headers():
+    if config.use_cn_headers(context.profile):
         # CN client/honoka-chan compatibility headers.  Keep them gated behind
         # [compat].region = "cn" so normal JP/Global clients are untouched.
         next_nonce = getattr(context, "nonce", 0) + 1
@@ -762,7 +762,7 @@ async def api_endpoint(
                         if endpoint is None:
                             msg = f"Endpoint not found: {module}/{action}"
                             util.log(msg, json.dumps(request_data), severity=util.logging.ERROR)
-                            raise error.IdolError(error.ERROR_CODE_LIB_ERROR, 404, msg, http_code=404)
+                            raise error.IdolError(error.ERROR_CODE_LIB_ERROR, 600, msg, http_code=200)
 
                         # *Sigh* have to reinvent the wheel.
                         if endpoint.request_class is not None:

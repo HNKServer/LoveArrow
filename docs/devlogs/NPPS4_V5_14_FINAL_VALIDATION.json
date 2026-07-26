@@ -1,0 +1,142 @@
+{
+  "package": "NPPS4-PC-v5_14-costume-contract-stability-fix-source",
+  "passed": 27,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "all embedded Python files parse",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "build id is v5.14 stability fix",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "policy explicitly forbids wardrobe prefetch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "native appearance is not returned as an owned-unit override",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no binding returns None",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "invalid binding returns None",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "actual binding returns CostumeInfo",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "single-use guard is present only in dressUp path",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no costume prefetch state/cache added",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "appearance query is targeted to one owned card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "full owned-unit payload defaults to override-only",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "unitAll explicitly disables native costume fallback",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "profile projection explicitly retains display fallback",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "profile info explicitly retains display fallback",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "targeted OptionalCostumeModel serializer exists",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "system/common.py uses targeted costume serializer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "system/advanced.py uses targeted costume serializer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "system/profile.py uses targeted costume serializer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "game/notice.py uses targeted costume serializer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "wire format omits absent costume key",
+      "ok": true,
+      "detail": "{\"unit_owning_user_id\": 1, \"unit_rarity_id\": null, \"exp\": 0, \"next_exp\": 1, \"level\": 1, \"level_limit_id\": 1, \"max_level\": 80, \"rank\": 1, \"max_rank\": 2, \"love\": 0, \"max_love\": 100, \"unit_skill_level\": 1, \"max_hp\": 3, \"favorite_flag\": false, \"display_rank\": 1, \"unit_skill_exp\": 0, \"unit_removable_skil"
+    },
+    {
+      "name": "wire format preserves real costume object",
+      "ok": true,
+      "detail": "{\"unit_owning_user_id\": 1, \"unit_rarity_id\": null, \"exp\": 0, \"next_exp\": 1, \"level\": 1, \"level_limit_id\": 1, \"max_level\": 80, \"rank\": 1, \"max_rank\": 2, \"love\": 0, \"max_love\": 100, \"unit_skill_level\": 1, \"max_hp\": 3, \"favorite_flag\": false, \"display_rank\": 1, \"unit_skill_exp\": 0, \"unit_removable_skil"
+    },
+    {
+      "name": "other v5.12 None fields remain present",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "route costumeList preserved",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "route costumeStatus preserved",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "route dressUp preserved",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "route makeCostume preserved",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no wardrobe removal API invented",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

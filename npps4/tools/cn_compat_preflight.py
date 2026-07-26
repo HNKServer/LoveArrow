@@ -97,7 +97,10 @@ def _db_path(db_name: str) -> str | None:
 
     try:
         from npps4.config import config
-        root = getattr(config.CONFIG_DATA.download.cn_archive, "db_root", "") or ""
+        from npps4 import client_profile
+        root = getattr(
+            config.get_profile_download(client_profile.ClientProfile.CN).cn_archive, "db_root", ""
+        ) or ""
         if root:
             for candidate in (f"{db_name}.db_", f"{db_name}.db", db_name):
                 p = os.path.join(root, candidate)
@@ -294,23 +297,31 @@ def _check_route_coverage(issues: list[Issue]) -> dict[str, Any]:
 
 
 def run_cn_preflight() -> dict[str, Any]:
+    from npps4 import client_profile
     from npps4.config import config
 
+    cn = client_profile.ClientProfile.CN
+    settings = config.get_profile_download(cn)
     issues: list[Issue] = []
     result: dict[str, Any] = {
-        "enabled": bool(config.is_cn_compat()),
-        "region": getattr(config.CONFIG_DATA.compat, "region", ""),
-        "download_backend": getattr(config.CONFIG_DATA.download, "backend", ""),
+        "enabled": bool(settings.enabled),
+        "profile": cn.value,
+        "download_backend": settings.backend,
+        "default_profile": config.get_default_profile().value,
     }
-    if not config.is_cn_compat():
+    if not settings.enabled:
         result["summary"] = {"errors": 0, "warnings": 0}
         result["issues"] = []
         return result
 
-    result["external_providers"] = _check_external_providers(issues)
-    result["masterdata"] = _check_masterdata_basics(issues)
-    result["server_data"] = _check_server_data_semantics(issues)
-    result["routes"] = _check_route_coverage(issues)
+    # This tool runs outside a normal game request.  Select CN explicitly so
+    # every legacy helper and master lookup observes the audited Profile rather
+    # than the ContextVar default (GL).
+    with client_profile.using(cn):
+        result["external_providers"] = _check_external_providers(issues)
+        result["masterdata"] = _check_masterdata_basics(issues)
+        result["server_data"] = _check_server_data_semantics(issues)
+        result["routes"] = _check_route_coverage(issues)
 
     errors = sum(1 for i in issues if i.severity == "error")
     warnings = sum(1 for i in issues if i.severity == "warn")

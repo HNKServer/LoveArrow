@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 import sqlalchemy
 
-from .. import idol
+from .. import client_profile, idol
 from .. import util
 from ..config import config
 from ..db import main
@@ -59,7 +59,9 @@ def _absolute(path: str) -> str:
 
 
 def _manifest_path() -> str:
-    configured = str(config.CONFIG_DATA.download.cn_archive.archive_access_manifest or "").strip()
+    configured = str(
+        config.get_profile_download(client_profile.ClientProfile.CN).cn_archive.archive_access_manifest or ""
+    ).strip()
     if configured:
         return _absolute(configured)
     return ""
@@ -273,7 +275,7 @@ async def sync_once(context: idol.BasicSchoolIdolContext, user: main.User) -> Ar
     if manifest is None:
         return result
 
-    cfg = config.CONFIG_DATA.download.cn_archive
+    cfg = config.get_profile_download(client_profile.ClientProfile.CN).cn_archive
     policies = {
         "main_scenario": _policy(cfg.main_scenario_unlock_policy, "main_scenario"),
         "side_story": _policy(cfg.subscenario_unlock_policy, "side_story"),

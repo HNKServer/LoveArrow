@@ -5,6 +5,7 @@ import pydantic
 
 from .. import data
 from .. import idol
+from ..idol import session as idol_session
 from .. import serialcode
 from .. import util
 from ..app import app
@@ -48,7 +49,16 @@ async def serial_code_index_post(
             if token is None:
                 return SerialCodeAPIResponse(ok=False, msg="Missing Token")
 
-            current_user = await user.get_from_token(context, token)
+            # WebView requests do not contain the normal game API's
+            # Client-Version header. Resolve the authenticated session before
+            # any profile-specific Master lookup, otherwise both clients run
+            # serial codes on the configured default profile.
+            token_data = await idol_session.decapsulate_token(context, token)
+            if token_data is None or int(token_data.user_id or 0) <= 0:
+                return SerialCodeAPIResponse(ok=False, msg="Missing User")
+            context.select_profile(token_data.profile)
+
+            current_user = await user.get(context, int(token_data.user_id))
             if current_user is None:
                 return SerialCodeAPIResponse(ok=False, msg="Missing User")
 

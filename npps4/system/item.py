@@ -1,12 +1,44 @@
+import dataclasses
+import importlib.resources as resources
+import json
+
 import sqlalchemy
 
 from . import common
 from . import item_model
+from . import client_catalogue
 from .. import const
 from .. import db
 from .. import idol
 from ..db import item
 from ..db import main
+
+
+
+
+@dataclasses.dataclass(frozen=True)
+class RecoveryItemContract:
+    recovery_item_id: int
+    recovery_type: int
+    recovery_value: int
+
+
+@common.context_cacheable("profile_recovery_item_contracts")
+async def _profile_recovery_item_contracts(
+    context: idol.BasicSchoolIdolContext, profile: str, /
+) -> dict[int, RecoveryItemContract]:
+    filename = "cn_recovery_items.json" if profile == "cn" else "gl_recovery_items.json"
+    raw = json.loads(
+        resources.files("npps4.assets").joinpath(filename).read_text(encoding="utf-8")
+    )
+    return {
+        int(row["recovery_item_id"]): RecoveryItemContract(
+            recovery_item_id=int(row["recovery_item_id"]),
+            recovery_type=int(row["recovery_type"]),
+            recovery_value=int(row["recovery_value"]),
+        )
+        for row in raw
+    }
 
 
 async def get_item_category_for_type_1000(context: idol.BasicSchoolIdolContext, item_id: int):
@@ -149,12 +181,45 @@ async def add_recovery_item(
     item_data.amount = item_data.amount + amount
 
 
+@common.context_cacheable("supported_recovery_item_ids")
+async def get_supported_recovery_item_ids(
+    context: idol.BasicSchoolIdolContext,
+    profile_marker: str,
+    /,
+) -> frozenset[int]:
+    """Return the exact supplied-client LP-item catalogue for this profile."""
+    catalogue = await client_catalogue.for_context(context, profile_marker)
+    return catalogue.recovery_item_ids
+
+
 async def get_recovery_items(context: idol.BasicSchoolIdolContext, /, user: main.User):
-    q = sqlalchemy.select(main.RecoveryItem).where(main.RecoveryItem.user_id == user.id, main.RecoveryItem.amount > 0)
+    supported = await get_supported_recovery_item_ids(
+        context, context.profile.value
+    )
+    if not supported:
+        return []
+    q = (
+        sqlalchemy.select(main.RecoveryItem)
+        .where(
+            main.RecoveryItem.user_id == user.id,
+            main.RecoveryItem.amount > 0,
+            main.RecoveryItem.item_id.in_(sorted(supported)),
+        )
+        .order_by(main.RecoveryItem.item_id)
+    )
     result = await context.db.main.execute(q)
-    return [common.ItemCount(item_id=i.item_id, amount=i.amount) for i in result.scalars()]
+    return [
+        common.ItemCount(item_id=int(row.item_id), amount=int(row.amount))
+        for row in result.scalars()
+    ]
 
 
 @common.context_cacheable("recovery_item")
 async def get_recovery_item_info(context: idol.BasicSchoolIdolContext, recovery_item_id: int, /):
-    return await db.get_decrypted_row(context.db.item, item.RecoveryItem, recovery_item_id)
+    row = await db.get_decrypted_row(context.db.item, item.RecoveryItem, recovery_item_id)
+    if row is not None:
+        return row
+    contracts = await _profile_recovery_item_contracts(
+        context, context.profile.value
+    )
+    return contracts.get(int(recovery_item_id))

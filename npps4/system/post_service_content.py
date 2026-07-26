@@ -31,12 +31,12 @@ from ..db import live as live_db
 from ..db import main
 from ..db import scenario as scenario_db
 from . import achievement
-from . import cn_content_master
+from . import content_master
 from . import eventscenario
 from . import multiunit
 
-GRANT_KEY = "cn_post_service_content"
-GRANT_VERSION = 1
+GRANT_KEY_PREFIX = "post_service_content"
+GRANT_VERSION = 2
 
 
 @dataclasses.dataclass(kw_only=True)
@@ -48,10 +48,14 @@ class PostServiceSyncResult:
     applied: bool = False
 
 
+def _grant_key(context: idol.BasicSchoolIdolContext) -> str:
+    return f"{GRANT_KEY_PREFIX}:{context.profile.value}"
+
+
 async def _get_grant(context: idol.BasicSchoolIdolContext, user: main.User):
     q = sqlalchemy.select(main.ContentAccessGrant).where(
         main.ContentAccessGrant.user_id == user.id,
-        main.ContentAccessGrant.grant_key == GRANT_KEY,
+        main.ContentAccessGrant.grant_key == _grant_key(context),
     )
     return (await context.db.main.execute(q)).scalar()
 
@@ -160,7 +164,7 @@ async def sync_once(
     _ = login_days
 
     result = PostServiceSyncResult()
-    if not config.is_cn_compat() or user.tutorial_state != -1:
+    if user.tutorial_state != -1:
         return result
 
     grant = await _get_grant(context, user)
@@ -168,9 +172,12 @@ async def sync_once(
         return result
 
     now = util.time()
-    active_added, release_added = await _sync_achievement_rows(context, user, now=now)
-    result.added_active_achievements = active_added
-    result.added_release_achievements = release_added
+    active_added = 0
+    release_added = 0
+    if config.is_cn_compat(context.profile):
+        active_added, release_added = await _sync_achievement_rows(context, user, now=now)
+        result.added_active_achievements = active_added
+        result.added_release_achievements = release_added
 
     # The caller runs NPPS4's normal login checker exactly once after this
     # synchronization.  Keeping the trigger in lbonus/execute avoids counting a
@@ -181,13 +188,13 @@ async def sync_once(
     # real completed rows so all archived chapters are visible and replayable,
     # without pretending the user has an active event or handing out historical
     # ranking rewards.
-    for info in cn_content_master.event_scenarios():
+    for info in content_master.event_scenarios(context.profile):
         if await eventscenario.unlock(
             context, user, info.event_scenario_id, is_new=False, completed=True, flush=False
         ):
             result.event_scenarios_granted += 1
 
-    for info in cn_content_master.multi_unit_scenarios():
+    for info in content_master.multi_unit_scenarios(context.profile):
         if await multiunit.unlock(
             context, user, info.multi_unit_scenario_id, is_new=False, completed=True, flush=False
         ):
@@ -196,7 +203,7 @@ async def sync_once(
     if grant is None:
         grant = main.ContentAccessGrant(
             user_id=user.id,
-            grant_key=GRANT_KEY,
+            grant_key=_grant_key(context),
             grant_version=GRANT_VERSION,
         )
         context.db.main.add(grant)
@@ -207,8 +214,9 @@ async def sync_once(
     await context.db.main.flush()
     result.applied = True
     util.log(
-        "CN post-service content sync",
+        "Post-service content sync",
         f"user_id={user.id}",
+        f"profile={context.profile.value}",
         f"active_achievements={active_added}",
         f"release_achievements={release_added}",
         f"event_scenarios={result.event_scenarios_granted}",

@@ -34,7 +34,7 @@ class TimestampMixin(pydantic.BaseModel):
     server_timestamp: int = pydantic.Field(default_factory=util.time)
 
 
-class CenterUnitInfo(pydantic.BaseModel):
+class CenterUnitInfo(unit_model.OptionalCostumeModel):
     unit_id: int
     level: int
     love: int
@@ -49,6 +49,7 @@ class CenterUnitInfo(pydantic.BaseModel):
     unit_skill_exp: int
     removable_skill_ids: list[int]
     unit_removable_skill_capacity: int
+    costume: unit_model.CostumeInfo | None = None
 
 
 async def get_cached[T: Hashable, U](

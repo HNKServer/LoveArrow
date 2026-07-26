@@ -24,8 +24,8 @@ class ClientCapabilities:
 
 
 def for_context(context: idol.BasicSchoolIdolContext) -> ClientCapabilities:
-    if config.is_cn_compat():
-        application_version = config.get_cn_application_version()
+    if context.profile.value == "cn":
+        application_version = config.get_cn_application_version(context.profile)
         return ClientCapabilities(
             profile="cn",
             application_version=application_version,
@@ -38,7 +38,7 @@ def for_context(context: idol.BasicSchoolIdolContext) -> ClientCapabilities:
 
     application_version = context.client_version
     return ClientCapabilities(
-        profile="standard",
+        profile="gl",
         application_version=application_version,
         request_version=context.client_version,
         supports_sif2_transfer_banner=application_version > (9, 11),

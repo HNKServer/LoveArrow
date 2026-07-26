@@ -7,6 +7,7 @@ import types
 import Cryptodome.PublicKey.RSA
 
 from . import cfgtype, data
+from .. import client_profile
 
 from typing import cast
 
@@ -65,6 +66,7 @@ CONFIG_DATA = data.ConfigData()
 
 _SERVER_KEY: Cryptodome.PublicKey.RSA.RsaKey
 _SERVER_KEYS: list[tuple[str, Cryptodome.PublicKey.RSA.RsaKey]] = []
+_SERVER_KEY_PROFILES: dict[str, client_profile.ClientProfile] = {}
 
 
 def _server_key_password():
@@ -93,7 +95,7 @@ def _load_server_keys() -> None:
     and records the one that worked for the session; responses are then signed
     with the matching key so the client-side embedded public key still verifies.
     """
-    global _SERVER_KEY, _SERVER_KEYS
+    global _SERVER_KEY, _SERVER_KEYS, _SERVER_KEY_PROFILES
 
     password = _server_key_password()
     primary_path = os.path.join(ROOT_DIR, CONFIG_DATA.main.server_private_key)
@@ -135,8 +137,30 @@ def _load_server_keys() -> None:
         label = os.path.splitext(os.path.basename(path))[0] or f"extra_{index}"
         keys.append((label, key))
 
+    # Identify the two shipped client key domains by public-key fingerprint,
+    # not merely by the selected primary filename.  This still works when an
+    # operator makes honoka_server_key.pem the primary key.
+    known_profiles: dict[tuple[int, int], client_profile.ClientProfile] = {}
+    for filename, profile in (
+        ("honoka_server_key.pem", client_profile.ClientProfile.CN),
+        ("npps4_default_server_key.pem", client_profile.ClientProfile.GL),
+    ):
+        known_path = os.path.join(ROOT_DIR, filename)
+        if not os.path.exists(known_path):
+            continue
+        try:
+            known_key = _load_rsa_key_file(known_path, None)
+        except Exception:
+            continue
+        known_profiles[_rsa_key_fingerprint(known_key)] = profile
+
     _SERVER_KEYS = keys
     _SERVER_KEY = primary_key
+    _SERVER_KEY_PROFILES = {
+        label: known_profiles[fp]
+        for label, key in keys
+        if (fp := _rsa_key_fingerprint(key)) in known_profiles
+    }
 
 
 _load_server_keys()
@@ -159,56 +183,55 @@ def _version_tuple2(version: str) -> tuple[int, int]:
     return int(parts[0]), int(parts[1])
 
 
-def get_cn_application_version() -> tuple[int, int]:
-    """Return the actual CN APK version used for UI/Lua capability gates.
-
-    This must not be derived from the SIF Client-Version header: the supplied
-    CN client sends its archive/server version (97.4.6) in that header.
-    """
-    global CONFIG_DATA
-    return _version_tuple2(CONFIG_DATA.download.cn_archive.application_version)
+def get_default_profile() -> client_profile.ClientProfile:
+    return client_profile.ClientProfile.normalize(CONFIG_DATA.download.default_profile, client_profile.ClientProfile.GL)
 
 
-def get_latest_version():
-    global CONFIG_DATA
-    if CONFIG_DATA.download.backend == "cn_archive":
-        return _version_tuple2(CONFIG_DATA.download.cn_archive.client_version)
-    if CONFIG_DATA.download.backend == "none":
-        return _version_tuple2(CONFIG_DATA.download.none.client_version)
-    # The active download backend also exposes a server version, but importing it
-    # here would create a circular dependency during bootstrap.
+def get_profile(profile: client_profile.ClientProfile | str | None = None) -> client_profile.ClientProfile:
+    return client_profile.current() if profile is None else client_profile.ClientProfile.normalize(profile)
+
+
+def get_profile_download(profile: client_profile.ClientProfile | str | None = None):
+    p = get_profile(profile)
+    return CONFIG_DATA.download.profiles.cn if p is client_profile.ClientProfile.CN else CONFIG_DATA.download.profiles.gl
+
+
+def profile_enabled(profile: client_profile.ClientProfile | str | None = None) -> bool:
+    return bool(get_profile_download(profile).enabled)
+
+
+def get_cn_application_version(
+    profile: client_profile.ClientProfile | str | None = client_profile.ClientProfile.CN,
+) -> tuple[int, int]:
+    # Application-version capability gates are CN-specific, but accepting an
+    # explicit Profile keeps call sites uniform with other profile-aware helpers.
+    dl = get_profile_download(profile)
+    return _version_tuple2(dl.cn_archive.application_version)
+
+
+def get_latest_version(profile: client_profile.ClientProfile | str | None = None):
+    dl = get_profile_download(profile)
+    if dl.backend == "cn_archive":
+        return _version_tuple2(dl.cn_archive.client_version)
+    if dl.backend == "none":
+        return _version_tuple2(dl.none.client_version)
+    # n4dlapi/internal are resolved by the active backend.  Avoid importing the
+    # registry here during bootstrap; their retained default is 59.4.
     return (59, 4)
 
 
-def get_latest_version_string():
-    """Return the server/download package version string exposed to clients.
-
-    NPPS4 historically stores versions as a two-part tuple, but the CN 9.7.x
-    client/honoka-chan contract uses the exact three-part package version
-    ``97.4.6`` in the Server-Version header and download/update payloads.
-    Truncating that to ``97.4`` makes the CN client keep believing the 99_*
-    update package is not fully applied, so it never reaches the normal bulk
-    download stage.
-    """
-    global CONFIG_DATA
-    if CONFIG_DATA.download.backend == "cn_archive":
-        return str(CONFIG_DATA.download.cn_archive.client_version).strip()
-    if CONFIG_DATA.download.backend == "none":
-        return str(CONFIG_DATA.download.none.client_version).strip()
-    return "%d.%d" % get_latest_version()
+def get_latest_version_string(profile: client_profile.ClientProfile | str | None = None):
+    dl = get_profile_download(profile)
+    if dl.backend == "cn_archive":
+        return str(dl.cn_archive.client_version).strip()
+    if dl.backend == "none":
+        return str(dl.none.client_version).strip()
+    return "%d.%d" % get_latest_version(profile)
 
 
-def skip_generic_client_version_check():
-    """Whether NPPS4's legacy Client-Version check should be bypassed.
-
-    CN sends the Android application version in the Client-Version header
-    (for example 9.7.1) while the download package/server version is 97.4.6.
-    honoka-chan does not compare those two values.  Keeping NPPS4's original
-    tuple comparison would cause normal post-download game endpoints to return
-    an empty response instead of entering the game.
-    """
-    global CONFIG_DATA
-    return CONFIG_DATA.download.backend == "cn_archive" and is_cn_compat()
+def skip_generic_client_version_check(profile: client_profile.ClientProfile | str | None = None):
+    dl = get_profile_download(profile)
+    return dl.backend == "cn_archive" and is_cn_compat(profile)
 
 
 def get_server_rsa():
@@ -229,6 +252,18 @@ def get_server_rsa_by_label(label: str | None):
         if key_label == label:
             return key
     return _SERVER_KEY
+
+
+def get_server_rsa_profile(label: str | None) -> client_profile.ClientProfile | None:
+    """Return the protocol profile proven by a known client RSA key.
+
+    Unknown/custom keys intentionally return ``None`` so deployments using
+    their own patched clients retain the normal explicit-header/default-profile
+    fallback instead of being guessed into CN or GL.
+    """
+    if label is None:
+        return None
+    return _SERVER_KEY_PROFILES.get(label)
 
 
 _SECRET_KEY: bytes = CONFIG_DATA.main.secret_key.encode("UTF-8")
@@ -270,9 +305,8 @@ def get_consumer_key():
     return CONFIG_DATA.advanced.consumer_key
 
 
-def inject_server_info():
-    global CONFIG_DATA
-    return CONFIG_DATA.download.send_patched_server_info
+def inject_server_info(profile: client_profile.ClientProfile | str | None = None):
+    return get_profile_download(profile).send_patched_server_info
 
 
 def load_module_from_file(file: str, modulename: str):
@@ -299,36 +333,30 @@ _login_bonus_module = cast(cfgtype.LoginBonusProtocol, load_module_from_file(_LO
 
 
 
-def is_cn_compat():
-    global CONFIG_DATA
-    return CONFIG_DATA.compat.region.lower() in {"cn", "china", "zh_cn", "zh"}
+def is_cn_compat(profile: client_profile.ClientProfile | str | None = None):
+    return get_profile(profile) is client_profile.ClientProfile.CN
 
 
-def use_cn_headers():
-    global CONFIG_DATA
-    return is_cn_compat() and CONFIG_DATA.compat.cn_main_headers
+def use_cn_headers(profile: client_profile.ClientProfile | str | None = None):
+    return is_cn_compat(profile) and CONFIG_DATA.compat.cn_main_headers
 
 
-def cn_autocreate_ghome_users():
-    global CONFIG_DATA
-    return is_cn_compat() and CONFIG_DATA.compat.cn_autocreate_ghome_users
+def cn_autocreate_ghome_users(profile: client_profile.ClientProfile | str | None = None):
+    return is_cn_compat(profile) and CONFIG_DATA.compat.cn_autocreate_ghome_users
 
 
-def use_cn_wrappers():
-    global CONFIG_DATA
-    return is_cn_compat() and CONFIG_DATA.compat.cn_wrappers
+def use_cn_wrappers(profile: client_profile.ClientProfile | str | None = None):
+    return is_cn_compat(profile) and CONFIG_DATA.compat.cn_wrappers
 
 
-def use_cn_optional_stubs():
-    global CONFIG_DATA
-    return is_cn_compat() and CONFIG_DATA.compat.cn_optional_stubs
+def use_cn_optional_stubs(profile: client_profile.ClientProfile | str | None = None):
+    return is_cn_compat(profile) and CONFIG_DATA.compat.cn_optional_stubs
 
 
-def get_daily_rotation_timezone_name() -> str:
-    global CONFIG_DATA
+def get_daily_rotation_timezone_name(profile: client_profile.ClientProfile | str | None = None) -> str:
     name = CONFIG_DATA.compat.daily_rotation_timezone.strip()
     if not name or name.lower() == "auto":
-        return "Asia/Shanghai" if is_cn_compat() else "Asia/Tokyo"
+        return "Asia/Shanghai" if is_cn_compat(profile) else "Asia/Tokyo"
     if name.lower() in {"system", "local"}:
         return "local"
     return name
@@ -394,20 +422,24 @@ def get_live_unit_drop_protocol():
     return _live_unit_drop_module
 
 
-CUSTOM_DOWNLOAD_FILE = os.path.join(ROOT_DIR, CONFIG_DATA.download.custom.file)
-_custom_download_backend_module = None
+_custom_download_backend_modules: dict[client_profile.ClientProfile, cfgtype.DownloadBackendProtocol] = {}
 
 
-def get_custom_download_protocol():
-    global _custom_download_backend_module
-
-    if _custom_download_backend_module is None:
-        _custom_download_backend_module = cast(
+def get_custom_download_protocol(profile: client_profile.ClientProfile | str | None = None):
+    """Deprecated script-backend accessor, now isolated per client Profile."""
+    normalized = get_profile(profile)
+    module = _custom_download_backend_modules.get(normalized)
+    if module is None:
+        filename = get_profile_download(normalized).custom.file
+        module = cast(
             cfgtype.DownloadBackendProtocol,
-            load_module_from_file(CUSTOM_DOWNLOAD_FILE, "external.custom_downloader"),
+            load_module_from_file(
+                os.path.join(ROOT_DIR, filename),
+                f"external.custom_downloader_{normalized.value}",
+            ),
         )
-
-    return _custom_download_backend_module
+        _custom_download_backend_modules[normalized] = module
+    return module
 
 
 # HACK: Override script mode
@@ -489,7 +521,7 @@ def reload_runtime_editable_data() -> dict[str, object]:
     global BEATMAP_PROVIDER_FILE, _beatmap_provider_module
     global LIVE_UNIT_DROP_FILE, _live_unit_drop_module
     global LIVE_BOX_DROP_FILE, _live_box_drop_module
-    global CUSTOM_DOWNLOAD_FILE, _custom_download_backend_module
+    global _custom_download_backend_modules
 
     cfg_path = os.environ.get("NPPS4_CONFIG")
     if cfg_path:
@@ -524,8 +556,7 @@ def reload_runtime_editable_data() -> dict[str, object]:
     LIVE_BOX_DROP_FILE = os.path.join(ROOT_DIR, CONFIG_DATA.game.live_box_drop)
     _live_box_drop_module = None
 
-    CUSTOM_DOWNLOAD_FILE = os.path.join(ROOT_DIR, CONFIG_DATA.download.custom.file)
-    _custom_download_backend_module = None
+    _custom_download_backend_modules.clear()
 
     return {
         "ok": True,

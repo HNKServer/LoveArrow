@@ -4,7 +4,8 @@ import sqlalchemy.orm
 import sqlalchemy.pool
 
 from . import common
-from ..download import download
+from . import master_registry
+from .. import client_profile
 
 
 class Scenario(common.GameDBBase, common.MaybeEncrypted):
@@ -69,14 +70,6 @@ class Chapter(common.GameDBBase, common.MaybeEncrypted):
     member_category: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column()
 
 
-engine = sqlalchemy.ext.asyncio.create_async_engine(
-    f"sqlite+aiosqlite:///file:{download.get_db_path('scenario')}?mode=ro&uri=true",
-    poolclass=sqlalchemy.pool.NullPool,
-    connect_args={"check_same_thread": False},
-)
-sessionmaker = sqlalchemy.ext.asyncio.async_sessionmaker(engine)
 
-
-def get_sessionmaker():
-    global sessionmaker
-    return sessionmaker
+def get_sessionmaker(profile: client_profile.ClientProfile | str | None = None):
+    return master_registry.get_sessionmaker("scenario", profile)

@@ -1,0 +1,15 @@
+{
+  "build_id": "v5.30-cn-honoka-exact-unit-master-fix",
+  "android_version_code": 530,
+  "android_version_name": "0.5.30",
+  "cn_unit_count": 3963,
+  "cn_catalogue_unit_count": 3963,
+  "checks": {
+    "cn_unit_3993_present": true,
+    "cn_skill_2956_present": true,
+    "pc_android_python_identical": true,
+    "compileall": true,
+    "database_migration_added": false,
+    "gradle_apk_build_run": false
+  }
+}

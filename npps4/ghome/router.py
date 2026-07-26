@@ -18,6 +18,7 @@ import Cryptodome.Cipher.DES3
 import Cryptodome.Cipher.PKCS1_v1_5
 import Cryptodome.Util.Padding
 
+from .. import client_profile
 from .. import idoltype
 from .. import util
 from ..app import app
@@ -148,7 +149,7 @@ async def _get_or_create_user(phone: str, password: str) -> tuple[int, str, str,
     passwd_hash = hashlib.md5(password.encode("utf-8")).hexdigest()
     now = util.time()
 
-    async with idol_session.BasicSchoolIdolContext(idoltype.Language.zh_cn) as ctx:
+    async with idol_session.BasicSchoolIdolContext(idoltype.Language.zh_cn, client_profile.ClientProfile.CN) as ctx:
         u = None
         is_new = False
 
@@ -174,10 +175,11 @@ async def _get_or_create_user(phone: str, password: str) -> tuple[int, str, str,
 
         autokey = (acct or {}).get("autokey") or ("AUTO" + util.randbytes(16).hex().upper())
         ticket = f"9999999{u.id}{now}"
-        # This is the key preservation point: existing NPPS4 /login/login can now
-        # authenticate CN clients without any special-case bypass.
-        u.key = str(u.id)
-        u.set_passwd(ticket)
+        # Bind/update only the CN login identity.  GL credentials attached to
+        # the same shared user remain untouched.
+        await user_system.ensure_identity(
+            ctx, u, str(u.id), ticket, external_user_id=str(u.id)
+        )
 
         accounts[phone] = {
             "user_id": u.id,
@@ -291,11 +293,12 @@ async def login_auto(request: fastapi.Request):
             user_id = int(acct["user_id"])
             ticket = acct.get("ticket") or f"9999999{user_id}{util.time()}"
             # Keep the game-layer login password synchronized with the ticket.
-            async with idol_session.BasicSchoolIdolContext(idoltype.Language.zh_cn) as ctx:
+            async with idol_session.BasicSchoolIdolContext(idoltype.Language.zh_cn, client_profile.ClientProfile.CN) as ctx:
                 u = await user_system.get(ctx, user_id)
                 if u is not None:
-                    u.key = str(u.id)
-                    u.set_passwd(ticket)
+                    await user_system.ensure_identity(
+                        ctx, u, str(u.id), ticket, external_user_id=str(u.id)
+                    )
             data = {"result": 0, "message": "ok", "autokey": autokey, "userid": str(user_id), "ticket": ticket}
             return _encrypted_json_response(request, data, 0, "ok")
     data = {"result": 31, "message": "账号不存在或者登陆状态已过期！"}

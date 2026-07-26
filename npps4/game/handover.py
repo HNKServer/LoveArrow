@@ -58,9 +58,11 @@ async def handover_exec(context: idol.SchoolIdolUserParams, request: HandoverExe
             # Really?
             raise idol.error.by_code(idol.error.ERROR_HANDOVER_EXPIRE)
 
-        # Reroll
-        assert current_user.key is not None and current_user.passwd is not None
-        target_user = await user.create(context, current_user.key, current_user.passwd)
+        # Reroll: create fresh progress, then move only this profile's login
+        # identity onto it.
+        if await user.get_identity(context, current_user) is None:
+            raise idol.error.by_code(idol.error.ERROR_HANDOVER_INVALID_ID_OR_CODE)
+        target_user = await user.create(context, None, None)
     else:
         target_user = await handover.find_user_by_passcode(context, request.handover_code)
         if target_user is None:
@@ -71,7 +73,7 @@ async def handover_exec(context: idol.SchoolIdolUserParams, request: HandoverExe
         if target_user.id == current_user.id:
             raise idol.error.by_code(idol.error.ERROR_HANDOVER_SELF)
 
-    handover.swap_credentials(current_user, target_user)
+    await handover.swap_credentials(context, current_user, target_user)
     target_user.transfer_sha1 = None
     await session.invalidate_current(context)
 

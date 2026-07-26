@@ -4,7 +4,8 @@ import sqlalchemy.orm
 import sqlalchemy.pool
 
 from . import common
-from ..download import download
+from . import master_registry
+from .. import client_profile
 
 
 class ExchangeFestivalPointUnit(common.GameDBBase):
@@ -74,14 +75,6 @@ class ExchangePoint(common.GameDBBase, common.MaybeEncrypted):
     end_date: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column()
 
 
-engine = sqlalchemy.ext.asyncio.create_async_engine(
-    f"sqlite+aiosqlite:///file:{download.get_db_path('exchange')}?mode=ro&uri=true",
-    poolclass=sqlalchemy.pool.NullPool,
-    connect_args={"check_same_thread": False},
-)
-sessionmaker = sqlalchemy.ext.asyncio.async_sessionmaker(engine)
 
-
-def get_sessionmaker():
-    global sessionmaker
-    return sessionmaker
+def get_sessionmaker(profile: client_profile.ClientProfile | str | None = None):
+    return master_registry.get_sessionmaker("exchange", profile)

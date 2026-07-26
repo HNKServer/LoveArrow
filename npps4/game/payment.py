@@ -110,6 +110,11 @@ class PaymentProductListResponse(pydantic.BaseModel):
     show_point_shop: bool
 
 
+class PaymentMonthResponse(common.TimestampMixin):
+    item_count: int = 0
+    payment_month_list: list[dict] = pydantic.Field(default_factory=list)
+
+
 class PaymentReceiptRequest(pydantic.BaseModel):
     receipt_data: str
     restore_flag: int
@@ -128,6 +133,13 @@ class PaymentReceiptProduct(user.UserDiffMixin):
 class PaymentReceiptResponse(common.TimestampMixin):
     status: bool
     product: PaymentReceiptProduct
+
+
+@idol.register("payment", "month")
+async def payment_month(context: idol.SchoolIdolUserParams) -> PaymentMonthResponse:
+    # A private server has no platform billing ledger.  Return the protocol's
+    # legitimate empty-history state so the page can close normally.
+    return PaymentMonthResponse()
 
 
 @idol.register("payment", "productList")

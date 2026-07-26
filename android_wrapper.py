@@ -25,7 +25,6 @@ import threading
 import time
 import traceback
 import zipfile
-import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +74,36 @@ def _copy_resource_tree(package: str, dst: Path, overwrite: bool = False) -> Non
 
 
 
+def _extract_embedded_workspace_defaults(root: Path, overwrite: bool = False) -> None:
+    """Extract first-run editable defaults without relying on AssetFinder paths.
+
+    The payload is an imported Python module, so Chaquopy always packages it. Files
+    are written only when absent, preserving user edits and deletions of individual
+    configuration entries inside existing files.
+    """
+    try:
+        from npps4.tools.android_workspace_payload import PAYLOAD_B64
+    except Exception:
+        return
+    try:
+        data = base64.b64decode(PAYLOAD_B64)
+        with zipfile.ZipFile(io.BytesIO(data), "r") as zf:
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                out = root / info.filename
+                if out.exists() and not overwrite:
+                    continue
+                out.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(info, "r") as src, out.open("wb") as fh:
+                    shutil.copyfileobj(src, fh)
+    except Exception:
+        # Keep an upgrade with an already-populated workspace startable even if
+        # the embedded payload itself is damaged. Later validation will report
+        # any genuinely missing required hook.
+        return
+
+
 def _extract_embedded_alembic(dst: Path, overwrite: bool = True) -> None:
     """Extract bundled Alembic files from an embedded base64 zip.
 
@@ -115,85 +144,29 @@ def _sha256_file(path: Path) -> str | None:
         return None
 
 
-def _copy_if_missing(src: Path, dst: Path) -> None:
-    if dst.exists():
-        return
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    if src.is_dir():
-        shutil.copytree(src, dst)
-    else:
-        shutil.copy2(src, dst)
+def _copy_if_missing(src: Path, dst: Path) -> bool:
+    """Copy a filesystem-backed bundled file only when the destination is absent.
 
-
-
-def _repair_external_hook_if_invalid(src: Path, dst: Path, required_callable) -> None:
-    """Repair Android workspace external hook files that were created as placeholders.
-
-    The Kotlin wrapper historically created external/login_bonus.py as a one-line
-    placeholder before Python had a chance to copy bundled defaults.  Because the
-    Python bootstrap intentionally preserves editable external/*.py files, that
-    placeholder shadowed the real bundled login bonus provider and later made
-    /lbonus/execute fail at runtime.
-
-    This function is deliberately conservative: valid user-edited hooks are kept;
-    missing, empty, placeholder, or syntactically/load-time broken hooks are backed
-    up and replaced with the bundled default implementation.
+    Chaquopy may expose Python modules through AssetFinder pseudo-paths which look
+    like normal paths but cannot be opened by shutil. Missing/non-filesystem bundle
+    paths must therefore be non-fatal; critical first-run defaults are supplied by
+    the embedded workspace payload below.
     """
-    if not src.exists():
-        return
-    required = [required_callable] if isinstance(required_callable, str) else list(required_callable)
-    should_replace = False
+    if dst.exists():
+        return True
     try:
-        if not dst.exists() or dst.stat().st_size < 32:
-            should_replace = True
-        else:
-            import runpy as _runpy
-            ns = _runpy.run_path(str(dst))
-            should_replace = any(not callable(ns.get(name)) for name in required)
-    except Exception:
-        should_replace = True
-
-    if should_replace:
+        if not src.exists():
+            return False
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if dst.exists():
-            try:
-                backup = dst.with_suffix(dst.suffix + ".invalid.bak")
-                if not backup.exists():
-                    shutil.copy2(dst, backup)
-            except Exception:
-                pass
-        shutil.copy2(src, dst)
-
-def _repair_server_data_if_empty_or_legacy(src: Path, dst: Path) -> None:
-    """Repair stale Android workspace server_data.json from early CN builds."""
-    if not src.exists():
-        return
-    should_replace = False
-    try:
-        import json as _json
-        if not dst.exists() or dst.stat().st_size <= 2:
-            should_replace = True
+        if src.is_dir():
+            shutil.copytree(src, dst)
         else:
-            with open(dst, "r", encoding="utf-8") as f:
-                data = _json.load(f)
-            known_keys = {
-                "$schema",
-                "badwords",
-                "achievement_reward",
-                "live_unit_drop_chance",
-                "common_live_unit_drops",
-                "live_specific_live_unit_drops",
-                "live_effort_drops",
-                "secretbox_data",
-                "serial_codes",
-                "sticker_shop",
-            }
-            should_replace = not isinstance(data, dict) or not (set(data.keys()) & known_keys)
-    except Exception:
-        should_replace = True
-    if should_replace:
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+            shutil.copy2(src, dst)
+        return True
+    except (FileNotFoundError, OSError):
+        return False
+
+
 
 def _zip_has_root_server_info(path: Path) -> bool:
     try:
@@ -327,6 +300,11 @@ def prepare_workspace(workdir: str, config_path: str | None = None, android_arch
     except Exception:
         pass
 
+    # Chaquopy does not guarantee that arbitrary source-tree files are available
+    # as real filesystem paths under AssetFinder. Extract the imported embedded
+    # payload first, but never overwrite an existing user-owned workspace file.
+    _extract_embedded_workspace_defaults(root, overwrite=False)
+
     # Install both RSA key families.  default_server_key.pem remains NPPS4/GL;
     # honoka_server_key.pem is used as CN/honoka fallback.
     _install_server_keys(root)
@@ -341,68 +319,43 @@ def prepare_workspace(workdir: str, config_path: str | None = None, android_arch
         if src.exists():
             _copy_if_missing(src, root / rel)
 
-    # v4.33: repair all default external providers, not just login_bonus.
-    # These files are editable, so valid user scripts are preserved; only
-    # missing/placeholder/broken hooks are replaced by bundled full providers.
-    for filename, required in [
-        ("badwords.py", "has_badwords"),
-        ("login_bonus.py", "get_rewards"),
-        ("beatmap.py", ["get_beatmap_data", "randomize_beatmaps"]),
-        ("live_unit_drop.py", "get_live_drop_unit"),
-        ("live_box_drop.py", "process_effort_box"),
+    # Editable workspace files are user-owned after first creation.  Populate
+    # missing defaults, but never repair, merge, or overwrite an existing hook.
+    # Invalid user files are reported by normal validation/startup instead of
+    # being silently reset behind the user's back.
+    for filename in [
+        "badwords.py",
+        "login_bonus.py",
+        "beatmap.py",
+        "live_unit_drop.py",
+        "live_box_drop.py",
     ]:
-        _repair_external_hook_if_invalid(
+        _copy_if_missing(
             BUNDLE_ROOT / "external" / filename,
             root / "external" / filename,
-            required,
         )
 
-    # server_data.json is intentionally editable, so copy it into workspace,
-    # but repair stale `{}` workspaces left by early CN wrapper builds.
-    _copy_if_missing(BUNDLE_ROOT / "npps4" / "server_data.json", root / "npps4" / "server_data.json")
-    _repair_server_data_if_empty_or_legacy(
-        BUNDLE_ROOT / "npps4" / "server_data.json", root / "npps4" / "server_data.json"
+    # server_data.json is copied only on first creation.  A user may delete,
+    # rename, or edit LOVEARROWSHOOT (or any other code); later starts must
+    # preserve that exact file and must not inject bundled entries.
+    _copy_if_missing(
+        BUNDLE_ROOT / "npps4" / "server_data.json",
+        root / "npps4" / "server_data.json",
     )
     schema = BUNDLE_ROOT / "npps4" / "server_data_schema.json"
     if schema.exists():
         _copy_if_missing(schema, root / "npps4" / "server_data_schema.json")
 
     cfg = Path(config_path).resolve() if config_path else root / "config.toml"
-    # Canonicalize only broken or missing Android wrapper configs.  v4.31 keeps v4.18 profile switching and adds login bonus hook repair; v4.18 adds
-    # a UI profile selector: CN local cn_archive vs GL online n4dlapi.  The
-    # Kotlin side rewrites config.toml before starting the service, so Python
-    # must not blindly overwrite a valid n4dlapi profile back to cn_archive.
-    new_cfg = default_config(str(root), str(archive_path), str(db_path))
-    try:
-        old_cfg = cfg.read_text(encoding="utf-8") if cfg.exists() else ""
-    except Exception:
-        old_cfg = ""
-    valid_backend = any(
-        token in old_cfg
-        for token in (
-            'backend = "cn_archive"',
-            "backend = 'cn_archive'",
-            'backend = "n4dlapi"',
-            "backend = 'n4dlapi'",
-            'backend = "internal"',
-            "backend = 'internal'",
-            'backend = "custom"',
-            "backend = 'custom'",
-            'backend = "none"',
-            "backend = 'none'",
-        )
-    )
-    if (not old_cfg.strip()) or ('backend = ""' in old_cfg) or (not valid_backend):
-        try:
-            if old_cfg and not (cfg.parent / "config.toml.pre-v418.bak").exists():
-                (cfg.parent / "config.toml.pre-v418.bak").write_text(old_cfg, encoding="utf-8")
-        except Exception:
-            pass
+    # config.toml is also user-owned after first creation.  Create the bundled
+    # default only when the file is absent; never canonicalize, migrate, repair,
+    # or rewrite an existing file during startup.
+    if not cfg.exists():
         cfg.parent.mkdir(parents=True, exist_ok=True)
-        cfg.write_text(new_cfg, encoding="utf-8")
-    _migrate_cn_client_version(cfg)
-    _migrate_cn_main_headers(cfg)
-    _remove_legacy_museum_transplant_config(cfg)
+        cfg.write_text(
+            default_config(str(root), str(archive_path), str(db_path)),
+            encoding="utf-8",
+        )
 
     return json.dumps({
         "ok": True,
@@ -414,284 +367,117 @@ def prepare_workspace(workdir: str, config_path: str | None = None, android_arch
     }, ensure_ascii=False)
 
 
-def _diagnostic_resolve(root: Path, value: str | None) -> Path | None:
-    if not value:
-        return None
-    candidate = Path(str(value))
-    return candidate.resolve() if candidate.is_absolute() else (root / candidate).resolve()
-
-
-def _diagnostic_archive_key(path: Path) -> tuple[int, int, int, str]:
-    parts = path.stem.split("_")
-    nums: list[int] = []
-    for part in parts[:3]:
-        try:
-            nums.append(int(part))
-        except ValueError:
-            nums.append(-1)
-    while len(nums) < 3:
-        nums.append(-1)
-    # Type-99 updates have the strongest override priority.
-    return (1 if nums[0] == 99 else 0, nums[1], nums[2], path.name)
-
-
-def _diagnostic_find_assets(archive_root: Path, targets: list[str]) -> dict[str, dict[str, Any] | None]:
-    found: dict[str, dict[str, Any] | None] = {target: None for target in targets}
-    if not archive_root.is_dir():
-        return found
-    unresolved = set(targets)
-    zips = sorted(archive_root.glob("*.zip"), key=_diagnostic_archive_key, reverse=True)
-    for archive in zips:
-        if not unresolved:
-            break
-        try:
-            with zipfile.ZipFile(archive, "r") as zf:
-                for target in tuple(unresolved):
-                    info = None
-                    for candidate in (target, "./" + target):
-                        try:
-                            info = zf.getinfo(candidate)
-                            break
-                        except KeyError:
-                            pass
-                    if info is not None:
-                        found[target] = {
-                            "zip": archive.name,
-                            "member": info.filename,
-                            "size": info.file_size,
-                            "crc": f"{info.CRC:08x}",
-                            "match": "exact",
-                        }
-                        unresolved.remove(target)
-                if unresolved:
-                    suffixes: dict[str, list[zipfile.ZipInfo]] = {target: [] for target in unresolved}
-                    for info in zf.infolist():
-                        if info.is_dir():
-                            continue
-                        name = info.filename.replace("\\", "/").lstrip("./")
-                        for target in tuple(unresolved):
-                            if name.endswith("/" + target):
-                                suffixes[target].append(info)
-                    for target, matches in suffixes.items():
-                        if len(matches) == 1:
-                            info = matches[0]
-                            found[target] = {
-                                "zip": archive.name,
-                                "member": info.filename,
-                                "size": info.file_size,
-                                "crc": f"{info.CRC:08x}",
-                                "match": "unique_suffix",
-                            }
-                            unresolved.discard(target)
-        except Exception as exc:
-            # Keep scanning; the report records unreadable packages separately.
-            continue
-    return found
-
-
-def _diagnostic_sqlite_counts(path: Path | None, table_hint: str) -> dict[str, Any]:
-    result: dict[str, Any] = {"path": str(path) if path else "", "exists": bool(path and path.is_file()), "tables": {}}
-    if path is None or not path.is_file():
-        return result
-    try:
-        with sqlite3.connect(path) as conn:
-            names = [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
-            for name in names:
-                if table_hint.lower() not in name.lower():
-                    continue
-                quoted = name.replace('"', '""')
-                count = int(conn.execute(f'SELECT COUNT(*) FROM "{quoted}"').fetchone()[0])
-                row: dict[str, Any] = {"count": count}
-                columns = [r[1] for r in conn.execute(f'PRAGMA table_info("{quoted}")')]
-                if "user_id" in columns:
-                    row["per_user"] = {
-                        str(user_id): int(amount)
-                        for user_id, amount in conn.execute(
-                            f'SELECT user_id, COUNT(*) FROM "{quoted}" GROUP BY user_id ORDER BY user_id'
-                        )
-                    }
-                result["tables"][name] = row
-    except Exception as exc:
-        result["error"] = f"{type(exc).__name__}: {exc}"
-    return result
-
-
-def _diagnostic_update_package(path: Path | None) -> dict[str, Any]:
-    result: dict[str, Any] = {
-        "path": str(path) if path else "",
-        "exists": bool(path and path.is_file()),
-        "size": path.stat().st_size if path and path.is_file() else 0,
-        "entries": [],
-        "error": "",
-    }
-    if not path or not path.is_file():
-        return result
-    try:
-        with zipfile.ZipFile(path) as zf:
-            result["entries"] = [
-                {
-                    "name": info.filename.replace("\\", "/"),
-                    "size": info.file_size,
-                    "compressed_size": info.compress_size,
-                    "crc": f"{info.CRC:08x}",
-                }
-                for info in zf.infolist()
-                if not info.is_dir()
-            ]
-            bad = zf.testzip()
-            if bad:
-                result["error"] = f"CRC failure: {bad}"
-    except Exception as exc:
-        result["error"] = f"{type(exc).__name__}: {exc}"
-    return result
-
-
-def generate_diagnostic_report(
-    workdir: str,
-    config_path: str | None = None,
-    android_archives: str | None = None,
-    db_root: str | None = None,
-) -> str:
-    """Generate the report which earlier revisions only mentioned in notes.
-
-    The report is intentionally self-contained and safe to view/share: secrets
-    and private keys are not printed. It checks the exact CN banner/scouting
-    resources, bundled home-banner assets, archive settings, and native Museum mode.
-    """
-    root = Path(workdir).resolve()
-    cfg_path = Path(config_path).resolve() if config_path else root / "config.toml"
-    prepare_workspace(str(root), str(cfg_path), android_archives, db_root)
-
-    try:
-        cfg = tomllib.loads(cfg_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        cfg = {}
-        config_error = f"{type(exc).__name__}: {exc}"
-    else:
-        config_error = ""
-
-    download = cfg.get("download", {}) if isinstance(cfg, dict) else {}
-    cn = download.get("cn_archive", {}) if isinstance(download, dict) else {}
-    compat = cfg.get("compat", {}) if isinstance(cfg, dict) else {}
-    database = cfg.get("database", {}) if isinstance(cfg, dict) else {}
-
-    archive_root = Path(android_archives).resolve() if android_archives else _diagnostic_resolve(root, cn.get("android_archives"))
-    if archive_root is None:
-        archive_root = root / "cn" / "list_CN_Android"
-    zip_files = sorted(archive_root.glob("*.zip")) if archive_root.is_dir() else []
-    unreadable: list[str] = []
-    # Opening the central directory is enough to catch broken/non-ZIP files.
-    # Do not call testzip(): it decompresses entire packages and is unsuitable
-    # for a 10+ GB mobile mirror. Probe the first four packages only; the exact
-    # target-asset scan below opens every necessary package lazily.
-    for zp in zip_files[:4]:
-        try:
-            with zipfile.ZipFile(zp, "r") as zf:
-                _ = len(zf.infolist())
-        except Exception as exc:
-            unreadable.append(f"{zp.name}: {type(exc).__name__}: {exc}")
-
-    targets = [
-        "assets/image/webview/wv_ba_01.png",
-        "assets/image/secretbox/icon/s_ba_1718_1.png",
-        "assets/image/secretbox/icon/s_ba_1_1.png",
-        "assets/image/secretbox/title/tx_title_1.texb",
-        "assets/image/secretbox/appeal/tx_appeal_2_2.texb",
-    ]
-    asset_hits = _diagnostic_find_assets(archive_root, targets)
-
-    archive_manifest_path = _diagnostic_resolve(root, cn.get("archive_access_manifest"))
-    extra_packages = [
-        _diagnostic_resolve(root, value)
-        for value in cn.get("android_extra_update_packages", [])
-        if isinstance(value, str)
-    ] if isinstance(cn, dict) else []
-
-    db_url = str(database.get("url", "")) if isinstance(database, dict) else ""
-    db_path: Path | None = None
-    for prefix in ("sqlite+aiosqlite:///", "sqlite:///"):
-        if db_url.startswith(prefix):
-            db_path = _diagnostic_resolve(root, db_url[len(prefix):])
-            break
-
-    try:
-        from npps4.build_info import BUILD_ID as build_id
-    except Exception:
-        build_id = "unknown"
-
-    payload: dict[str, Any] = {
-        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S %z"),
-        "build_id": build_id,
-        "workspace": str(root),
-        "config": str(cfg_path),
-        "config_error": config_error,
-        "server_state": dict(_state),
-        "profile": {
-            "download_backend": download.get("backend") if isinstance(download, dict) else None,
-            "region": compat.get("region") if isinstance(compat, dict) else None,
-            "cn_wrappers": compat.get("cn_wrappers") if isinstance(compat, dict) else None,
-        },
-        "cn_archive": {
-            "root": str(archive_root),
-            "exists": archive_root.is_dir(),
-            "zip_count": len(zip_files),
-            "unreadable_probe": unreadable,
-            "asset_hits": asset_hits,
-        },
-        "native_museum": {
-            "mode": "CN native catalogue only",
-            "unlock_policy": str(cn.get("museum_unlock_policy", cn.get("museum_bridge_unlock_policy", "all"))).lower(),
-            "expected_catalogue_count": 16,
-            "client_transplant_enabled": False,
-            "legacy_bridge_cleanup": "automatic on user Museum response",
-        },
-        "archive_access_manifest": {
-            "path": str(archive_manifest_path) if archive_manifest_path else "",
-            "exists": bool(archive_manifest_path and archive_manifest_path.is_file()),
-        },
-        "extra_update_packages": [
-            {"path": str(path), "exists": bool(path and path.is_file())}
-            for path in extra_packages if path is not None
-        ],
-        "interpretation": [
-            "CN uses its native Museum catalogue only; no merged GL Museum DB/Lua/update package is generated or served.",
-            "The CN front carousel contains data transfer first and real type-1 scouting pages; the back carousel contains the manga WebView item.",
-            "The two custom thumbnails are exposed through stock CN catalogue identifiers (wv_ba_01 and s_ba_1718_1), including .imag cache-key aliases.",
-            "museum_unlock_policy=all unlocks only the native 16-entry CN catalogue; no GL Museum transplant is present.",
-        ],
-    }
-
-    report_dir = root / "reports"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    report_path = report_dir / f"NPPS4-diagnostic-{time.strftime('%Y%m%d-%H%M%S')}.txt"
-    lines = [
-        "NPPS4 Android Wrapper diagnostic report",
-        "======================================",
-        "",
-        json.dumps(payload, ensure_ascii=False, indent=2, default=str),
-        "",
-    ]
-    report_path.write_text("\n".join(lines), encoding="utf-8")
-    return json.dumps(
-        {
-            "ok": True,
-            "path": str(report_path),
-            "build_id": build_id,
-            "zip_count": len(zip_files),
-            "museum_policy": payload["native_museum"]["unlock_policy"],
-            "asset_hits": {key: value is not None for key, value in asset_hits.items()},
-        },
-        ensure_ascii=False,
-    )
-
 
 def default_config(root: str, android_archives: str | None = None, db_root: str | None = None) -> str:
-    root = Path(root).resolve().as_posix()
+    root_path = Path(root).resolve()
+    root = root_path.as_posix()
     android_archives = Path(android_archives).resolve().as_posix() if android_archives else f"{root}/cn/list_CN_Android"
     db_root = Path(db_root).resolve().as_posix() if db_root else f"{root}/data/db_cn_honoka"
-    return f'''# Generated by NPPS4 Android Wrapper.\n# Mutable workspace: {root}\n\n[main]\ndata_directory = "data"\nsecret_key = "Change this secret if you expose the server"\nserver_private_key = "default_server_key.pem"\nserver_private_key_password = ""\nserver_data = "npps4/server_data.json"\nsession_expiry = 259200\nsave_notes_list = false\n\n[database]\nurl = "sqlite+aiosqlite:///data/main.sqlite3"\n\n[download]\nbackend = "cn_archive"\nsend_patched_server_info = true\n\n[download.n4dlapi]\nserver = "https://ll.sif.moe/npps4_dlapi/"\nshared_key = ""\n\n[download.cn_archive]\nandroid_archives = "{android_archives}"\nios_archives = ""\nandroid_extracted = ""\nios_extracted = ""\ndb_root = "{db_root}"\napplication_version = "9.7.1"\nclient_version = "97.4.6"\nupdate_package_type = 99\nserver_info_override = "99_0_115.zip"\nandroid_server_info_override = "cn_server_info_99_0_115.zip"\nios_server_info_override = ""\ngl_overlay_enabled = true\ngl_overlay_server = "https://ll.sif.moe/npps4_dlapi"\ngl_overlay_shared_key = ""\ngl_overlay_cache = ""\ngl_overlay_timeout = 30\ngl_overlay_try_language_fallback = true\ngl_overlay_negative_ttl = 300\nandroid_extra_update_packages = []\nios_extra_update_packages = []\narchive_access_manifest = "data/cn_update_overlays/archive_access_manifest.json"\nmuseum_unlock_policy = "all"\nmain_scenario_unlock_policy = "normal"\nsubscenario_unlock_policy = "normal"\nlive_unlock_policy = "normal"\nalbum_catalog_unlock_policy = "normal"\n\n[game]\nbadwords = "external/badwords.py"\nlogin_bonus = "external/login_bonus.py"\nbeatmaps = "external/beatmap.py"\nlive_unit_drop = "external/live_unit_drop.py"\nlive_box_drop = "external/live_box_drop.py"\n\n[advanced]\nbase_xorpad = "eit4Ahph4aiX4ohmephuobei6SooX9xo"\napplication_key = "b6e6c940a93af2357ea3e0ace0b98afc"\nconsumer_key = "lovelive_test"\nverify_xmc = true\n\n[compat]\nregion = "cn"\ncn_main_headers = true\ncn_autocreate_ghome_users = true\ncn_wrappers = true\ncn_optional_stubs = true\ndaily_rotation_timezone = "auto"\nlive_continue_loveca_cost = 1\n\n[iex]\nenable_export = true\nenable_import = true\nbypass_signature = false\n\n[gameplay]\nenergy_multiplier = 1\nlove_multiplier = 1\nsecretbox_cost_multiplier = 1\n'''
+    gl_archive_root = (root_path / "data" / "gl_archive_root").as_posix()
+    return f'''# Generated by NPPS4 Android Wrapper.
+# Mutable workspace: {root}
 
+[main]
+data_directory = "data"
+secret_key = "Change this secret if you expose the server"
+server_private_key = "default_server_key.pem"
+server_private_key_password = ""
+server_data = "npps4/server_data.json"
+session_expiry = 259200
+save_notes_list = false
 
+[database]
+url = "sqlite+aiosqlite:///data/main.sqlite3"
+
+[download]
+backend = ""
+default_profile = "cn"
+
+[download.profiles.cn]
+enabled = true
+backend = "cn_archive"
+museum_unlock_policy = "all"
+send_patched_server_info = true
+
+[download.profiles.cn.n4dlapi]
+server = ""
+shared_key = ""
+
+[download.profiles.cn.cn_archive]
+android_archives = "{android_archives}"
+ios_archives = ""
+android_extracted = ""
+ios_extracted = ""
+db_root = "{db_root}"
+application_version = "9.7.1"
+client_version = "97.4.6"
+update_package_type = 99
+server_info_override = "99_0_115.zip"
+android_server_info_override = "cn_server_info_99_0_115.zip"
+ios_server_info_override = ""
+gl_overlay_enabled = true
+gl_overlay_server = "https://ll.sif.moe/npps4_dlapi"
+gl_overlay_shared_key = ""
+gl_overlay_cache = ""
+gl_overlay_timeout = 30
+gl_overlay_try_language_fallback = true
+gl_overlay_negative_ttl = 300
+android_extra_update_packages = []
+ios_extra_update_packages = []
+archive_access_manifest = "data/cn_update_overlays/archive_access_manifest.json"
+main_scenario_unlock_policy = "normal"
+subscenario_unlock_policy = "normal"
+live_unlock_policy = "normal"
+album_catalog_unlock_policy = "normal"
+
+[download.profiles.gl]
+enabled = true
+backend = "n4dlapi"
+museum_unlock_policy = "all"
+send_patched_server_info = true
+
+[download.profiles.gl.internal]
+archive_root = "{gl_archive_root}"
+
+[download.profiles.gl.n4dlapi]
+server = "https://ll.sif.moe/npps4_dlapi"
+shared_key = ""
+
+[download.profiles.gl.none]
+client_version = "59.4"
+
+[game]
+badwords = "external/badwords.py"
+login_bonus = "external/login_bonus.py"
+beatmaps = "external/beatmap.py"
+live_unit_drop = "external/live_unit_drop.py"
+live_box_drop = "external/live_box_drop.py"
+
+[advanced]
+base_xorpad = "eit4Ahph4aiX4ohmephuobei6SooX9xo"
+application_key = "b6e6c940a93af2357ea3e0ace0b98afc"
+consumer_key = "lovelive_test"
+verify_xmc = true
+
+[compat]
+region = "dual"
+cn_main_headers = true
+cn_autocreate_ghome_users = true
+cn_wrappers = true
+cn_optional_stubs = false
+daily_rotation_timezone = "auto"
+live_continue_loveca_cost = 1
+
+[iex]
+enable_export = true
+enable_import = true
+bypass_signature = false
+
+[gameplay]
+energy_multiplier = 1
+love_multiplier = 1
+secretbox_cost_multiplier = 1
+'''
 
 
 def _migrate_cn_client_version(config_path: Path) -> None:
@@ -705,7 +491,11 @@ def _migrate_cn_client_version(config_path: Path) -> None:
         text = config_path.read_text(encoding="utf-8")
     except Exception:
         return
-    if 'backend = "cn_archive"' not in text and "backend = 'cn_archive'" not in text:
+    if (
+        'backend = "cn_archive"' not in text
+        and "backend = 'cn_archive'" not in text
+        and "[download.profiles.cn.cn_archive]" not in text
+    ):
         return
     new_text = re.sub(r'(client_version\s*=\s*["\'])97\.4(["\'])', r'\g<1>97.4.6\2', text)
     if new_text != text:
@@ -731,7 +521,11 @@ def _migrate_cn_main_headers(config_path: Path) -> None:
         text = config_path.read_text(encoding="utf-8")
     except Exception:
         return
-    if 'backend = "cn_archive"' not in text and "backend = 'cn_archive'" not in text:
+    if (
+        'backend = "cn_archive"' not in text
+        and "backend = 'cn_archive'" not in text
+        and "[download.profiles.cn.cn_archive]" not in text
+    ):
         return
     if 'region = "global"' in text or "region = 'global'" in text:
         return
@@ -744,6 +538,52 @@ def _migrate_cn_main_headers(config_path: Path) -> None:
         except Exception:
             pass
         config_path.write_text(new_text, encoding="utf-8")
+
+def _migrate_profile_museum_policies(config_path: Path) -> None:
+    """Move the old CN-only nested policy to independent CN/GL profile keys."""
+    try:
+        text = config_path.read_text(encoding="utf-8")
+    except Exception:
+        return
+
+    legacy_value = "all"
+    legacy_found = False
+    nested_pattern = re.compile(
+        r"(?ms)^\[download\.profiles\.cn\.cn_archive\]\s*$(.*?)(?=^\[|\Z)"
+    )
+    nested = nested_pattern.search(text)
+    if nested:
+        match = re.search(
+            r"(?m)^museum_(?:bridge_)?unlock_policy\s*=\s*[\"'](normal|all)[\"']",
+            nested.group(1),
+        )
+        if match:
+            legacy_value = match.group(1)
+            legacy_found = True
+        cleaned = re.sub(
+            r"(?m)^museum_(?:bridge_)?unlock_policy\s*=.*\n?", "", nested.group(0)
+        )
+        text = text[:nested.start()] + cleaned + text[nested.end():]
+
+    for profile, default in (("cn", legacy_value), ("gl", "all")):
+        section_pattern = re.compile(
+            rf"(?ms)^\[download\.profiles\.{profile}\]\s*$(.*?)(?=^\[|\Z)"
+        )
+        section = section_pattern.search(text)
+        if not section:
+            continue
+        existing = re.search(r"(?m)^museum_unlock_policy\s*=\s*[\"'](?:normal|all)[\"']", section.group(1))
+        if profile == "cn" and legacy_found and existing:
+            replacement = f'museum_unlock_policy = "{legacy_value}"'
+            start = section.start(1) + existing.start()
+            end = section.start(1) + existing.end()
+            text = text[:start] + replacement + text[end:]
+        elif not existing:
+            insertion = f'museum_unlock_policy = "{default}"\n'
+            text = text[:section.end()] + insertion + text[section.end():]
+
+    config_path.write_text(text, encoding="utf-8")
+
 
 def _remove_legacy_museum_transplant_config(config_path: Path) -> None:
     """Remove abandoned CN/GL Museum transplant options from existing configs."""

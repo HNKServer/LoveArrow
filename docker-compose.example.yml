@@ -25,7 +25,7 @@ services:
       # ... and so on
       NPPS4_WORKER: 1
     ports:
-      - 51376:51376
+      - 8080:8080
     volumes:
       - ./npps4_data:/NPPS4/data
     restart: unless-stopped

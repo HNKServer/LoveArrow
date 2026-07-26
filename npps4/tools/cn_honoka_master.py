@@ -16,6 +16,7 @@ small bootstrap rows which NPPS4 requires but neither source ships.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sqlite3
@@ -46,6 +47,21 @@ def bundled_honoka_main_db() -> str:
         return str(resources.files("npps4.assets").joinpath("honoka_main.db"))
     except Exception:
         return str(Path(__file__).resolve().parents[1] / "assets" / "honoka_main.db")
+
+
+def bundled_cn_recovery_items_json() -> str:
+    """Return the audited CN recovery-item catalogue bundled with the server.
+
+    honoka-chan intentionally exposes these item IDs in ``lp_recovery_item``,
+    but its combined ``main.db`` does not contain ``recovery_item_m``.  The
+    rows come from the decrypted CN item master referenced by honoka-chan, so
+    the generated NPPS4 split database retains the official names, recovery
+    types, values and asset paths instead of inventing placeholder objects.
+    """
+    try:
+        return str(resources.files("npps4.assets").joinpath("cn_recovery_items.json"))
+    except Exception:
+        return str(Path(__file__).resolve().parents[1] / "assets" / "cn_recovery_items.json")
 
 
 def bundled_cn_client_master_db() -> str:
@@ -173,6 +189,49 @@ def _copy_table(src: sqlite3.Connection, dst: sqlite3.Connection, table: str) ->
 
     dst.executemany(insert_sql, batch)
     return len(batch), "copied"
+
+
+def _seed_cn_recovery_items(conn: sqlite3.Connection) -> int:
+    """Insert the exact CN LP-item catalogue missing from honoka ``main.db``.
+
+    The function is deliberately database-local: it writes only immutable
+    master rows into the generated read-only ``item.db_``.  It does not preload
+    user inventories and does not create any process- or session-lifetime
+    cache.  Re-generation is idempotent because rows are keyed by
+    ``recovery_item_id`` and inserted with ``OR REPLACE``.
+    """
+    if "recovery_item_m" not in _source_tables(conn):
+        return 0
+
+    path = bundled_cn_recovery_items_json()
+    with open(path, "r", encoding="utf-8") as stream:
+        raw_rows = json.load(stream)
+    if not isinstance(raw_rows, list):
+        raise RuntimeError(f"Invalid CN recovery item catalogue: {path}")
+
+    target_columns = [column[1] for column in _columns(conn, "recovery_item_m")]
+    target_meta = {column[1]: column for column in _columns(conn, "recovery_item_m")}
+    quoted = ", ".join(f'"{column}"' for column in target_columns)
+    placeholders = ", ".join("?" for _ in target_columns)
+    sql = f'INSERT OR REPLACE INTO "recovery_item_m" ({quoted}) VALUES ({placeholders})'
+
+    batch = []
+    for raw in raw_rows:
+        if not isinstance(raw, dict) or "recovery_item_id" not in raw:
+            raise RuntimeError(f"Invalid CN recovery item row in {path}: {raw!r}")
+        values = []
+        for column in target_columns:
+            if column in raw:
+                value = raw[column]
+                if value is None and (target_meta[column][3] or target_meta[column][5]):
+                    value = _value_for_missing_column(target_meta[column])
+                values.append(value)
+            else:
+                values.append(_value_for_missing_column(target_meta[column]))
+        batch.append(values)
+
+    conn.executemany(sql, batch)
+    return len(batch)
 
 
 def _insert_defaults(conn: sqlite3.Connection) -> None:
@@ -346,7 +405,7 @@ def _generated_effort_db_ok(root: str) -> bool:
         return False
 
 
-GENERATOR_VERSION = "cn_honoka_master:v6_accessory_full_cycle"
+GENERATOR_VERSION = "cn_honoka_master:v8_profile_contracts"
 
 
 def _write_manifest(conn: sqlite3.Connection, source: str, db_name: str, copied: list[tuple[str, int, str]]):
@@ -411,6 +470,14 @@ def generate_split_db(source_main_db: str, out_dir: str, db_names: Iterable[str]
                     else:
                         copied.append((table, 0, "not_in_cn_client_or_honoka"))
                 _insert_defaults(dst)
+                seeded_recovery = _seed_cn_recovery_items(dst)
+                if seeded_recovery:
+                    copied = [
+                        (table, seeded_recovery, "bundled_cn_recovery_items")
+                        if table == "recovery_item_m"
+                        else (table, count, status)
+                        for table, count, status in copied
+                    ]
                 _ensure_effort_defaults(dst)
                 _write_manifest(dst, source_main_db, db_name, copied)
                 dst.commit()

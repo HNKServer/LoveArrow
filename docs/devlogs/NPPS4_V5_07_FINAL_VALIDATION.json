@@ -1,0 +1,111 @@
+{
+  "passed": 21,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "ranking/live bypasses transport XMC verification",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ranking/player bypasses transport XMC verification",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ranking/player uses error_code 1 safe fallback",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "guest Live projection validates receiver-side leader skill",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "partyList advertises validated guest projection",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "live/play recalculates with the same validated projection",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "event story null omission fix retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "response remains signed game protocol response",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "v5.07 build ID present",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Android versionCode 507",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Android versionName 0.5.7",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "honoka generic fallback is HTTP protocol success with status 600/error 1",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "honoka implements ranking/live but not ranking/player",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "ranking/player empty state returns honoka-compatible game error",
+      "passed": true,
+      "detail": "(1, 600)"
+    },
+    {
+      "name": "ranking/live empty state remains honoka-compatible success",
+      "passed": true,
+      "detail": "{'page': 0, 'rank': 0, 'items': [], 'total_cnt': 0, 'present_cnt': 0}"
+    },
+    {
+      "name": "guest card with missing receiver-side leader skill is rejected",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "guest card with valid receiver-side leader skill is accepted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Python compileall succeeds",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Android and PC Python trees are identical",
+      "passed": true,
+      "detail": "2315 vs 2315"
+    },
+    {
+      "name": "CN verified asset unchanged: 4_0_999.zip",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "CN verified asset unchanged: npps4_data_transfer.png",
+      "passed": true,
+      "detail": ""
+    }
+  ]
+}

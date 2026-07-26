@@ -5,20 +5,21 @@ server_private_key = "default_server_key.pem"
 server_private_key_password = ""
 server_data = "npps4/server_data.json"
 session_expiry = 259200
-save_notes_list = false
 
 [database]
 url = "sqlite+aiosqlite:///data/main.sqlite3"
 
 [download]
+backend = ""
+default_profile = "cn"
+
+[download.profiles.cn]
+museum_unlock_policy = "all" # normal | all; native catalogue only
+enabled = true
 backend = "cn_archive"
 send_patched_server_info = true
 
-[download.n4dlapi]
-server = "https://ll.sif.moe/npps4_dlapi/"
-shared_key = ""
-
-[download.cn_archive]
+[download.profiles.cn.cn_archive]
 android_archives = "list_CN_Android"
 ios_archives = ""
 android_extracted = ""
@@ -29,23 +30,15 @@ client_version = "97.4.6"
 update_package_type = 99
 server_info_override = "99_0_115.zip"
 android_server_info_override = "cn_server_info_99_0_115.zip"
-ios_server_info_override = ""
-gl_overlay_enabled = true
-gl_overlay_server = "https://ll.sif.moe/npps4_dlapi"
-gl_overlay_shared_key = ""
-gl_overlay_cache = ""
-gl_overlay_timeout = 30
-gl_overlay_try_language_fallback = true
-gl_overlay_negative_ttl = 300
-android_extra_update_packages = []
-ios_extra_update_packages = []
-archive_access_manifest = "data/cn_update_overlays/archive_access_manifest.json"
-# normal = ordinary progression; all = unlock every native CN Museum item (16).
-museum_unlock_policy = "all"
 main_scenario_unlock_policy = "normal"
 subscenario_unlock_policy = "normal"
 live_unlock_policy = "normal"
 album_catalog_unlock_policy = "normal"
+
+[download.profiles.gl]
+museum_unlock_policy = "all" # normal | all; native catalogue only
+enabled = false
+backend = "n4dlapi"
 
 [game]
 badwords = "external/badwords.py"
@@ -61,11 +54,11 @@ consumer_key = "lovelive_test"
 verify_xmc = true
 
 [compat]
-region = "cn"
+region = "dual"
 cn_main_headers = true
 cn_autocreate_ghome_users = true
 cn_wrappers = true
-cn_optional_stubs = true
+cn_optional_stubs = false
 daily_rotation_timezone = "auto"
 live_continue_loveca_cost = 1
 
@@ -78,3 +71,5 @@ bypass_signature = false
 energy_multiplier = 1
 love_multiplier = 1
 secretbox_cost_multiplier = 1
+# Keep Museum/Album unlocks viewable without permanent team-stat bonuses.
+museum_stat_bonus_enabled = false

@@ -1,0 +1,178 @@
+[
+  {
+    "tab_name": "μ’s",
+    "asset_list": [
+      {
+        "unit_type_id": 1,
+        "asset_path": "assets/image/accessory/list/list_1.png"
+      },
+      {
+        "unit_type_id": 2,
+        "asset_path": "assets/image/accessory/list/list_2.png"
+      },
+      {
+        "unit_type_id": 3,
+        "asset_path": "assets/image/accessory/list/list_3.png"
+      },
+      {
+        "unit_type_id": 4,
+        "asset_path": "assets/image/accessory/list/list_4.png"
+      },
+      {
+        "unit_type_id": 5,
+        "asset_path": "assets/image/accessory/list/list_5.png"
+      },
+      {
+        "unit_type_id": 6,
+        "asset_path": "assets/image/accessory/list/list_6.png"
+      },
+      {
+        "unit_type_id": 7,
+        "asset_path": "assets/image/accessory/list/list_7.png"
+      },
+      {
+        "unit_type_id": 8,
+        "asset_path": "assets/image/accessory/list/list_8.png"
+      },
+      {
+        "unit_type_id": 9,
+        "asset_path": "assets/image/accessory/list/list_9.png"
+      }
+    ]
+  },
+  {
+    "tab_name": "Aqours",
+    "asset_list": [
+      {
+        "unit_type_id": 101,
+        "asset_path": "assets/image/accessory/list/list_10.png"
+      },
+      {
+        "unit_type_id": 102,
+        "asset_path": "assets/image/accessory/list/list_11.png"
+      },
+      {
+        "unit_type_id": 103,
+        "asset_path": "assets/image/accessory/list/list_12.png"
+      },
+      {
+        "unit_type_id": 104,
+        "asset_path": "assets/image/accessory/list/list_13.png"
+      },
+      {
+        "unit_type_id": 105,
+        "asset_path": "assets/image/accessory/list/list_14.png"
+      },
+      {
+        "unit_type_id": 106,
+        "asset_path": "assets/image/accessory/list/list_15.png"
+      },
+      {
+        "unit_type_id": 107,
+        "asset_path": "assets/image/accessory/list/list_16.png"
+      },
+      {
+        "unit_type_id": 108,
+        "asset_path": "assets/image/accessory/list/list_17.png"
+      },
+      {
+        "unit_type_id": 109,
+        "asset_path": "assets/image/accessory/list/list_18.png"
+      }
+    ]
+  },
+  {
+    "tab_name": "虹咲",
+    "asset_list": [
+      {
+        "unit_type_id": 201,
+        "asset_path": "assets/image/accessory/list/list_24.png"
+      },
+      {
+        "unit_type_id": 202,
+        "asset_path": "assets/image/accessory/list/list_25.png"
+      },
+      {
+        "unit_type_id": 203,
+        "asset_path": "assets/image/accessory/list/list_26.png"
+      },
+      {
+        "unit_type_id": 204,
+        "asset_path": "assets/image/accessory/list/list_27.png"
+      },
+      {
+        "unit_type_id": 205,
+        "asset_path": "assets/image/accessory/list/list_28.png"
+      },
+      {
+        "unit_type_id": 206,
+        "asset_path": "assets/image/accessory/list/list_29.png"
+      },
+      {
+        "unit_type_id": 207,
+        "asset_path": "assets/image/accessory/list/list_30.png"
+      },
+      {
+        "unit_type_id": 208,
+        "asset_path": "assets/image/accessory/list/list_31.png"
+      },
+      {
+        "unit_type_id": 209,
+        "asset_path": "assets/image/accessory/list/list_32.png"
+      },
+      {
+        "unit_type_id": 212,
+        "asset_path": "assets/image/accessory/list/list_33.png"
+      },
+      {
+        "unit_type_id": 213,
+        "asset_path": "assets/image/accessory/list/list_34.png"
+      },
+      {
+        "unit_type_id": 214,
+        "asset_path": "assets/image/accessory/list/list_35.png"
+      }
+    ]
+  },
+  {
+    "tab_name": "Liella!",
+    "asset_list": [
+      {
+        "unit_type_id": 301,
+        "asset_path": "assets/image/accessory/list/list_19.png"
+      },
+      {
+        "unit_type_id": 302,
+        "asset_path": "assets/image/accessory/list/list_20.png"
+      },
+      {
+        "unit_type_id": 303,
+        "asset_path": "assets/image/accessory/list/list_21.png"
+      },
+      {
+        "unit_type_id": 304,
+        "asset_path": "assets/image/accessory/list/list_22.png"
+      },
+      {
+        "unit_type_id": 305,
+        "asset_path": "assets/image/accessory/list/list_23.png"
+      },
+      {
+        "unit_type_id": 306,
+        "asset_path": "assets/image/accessory/list/list_36.png"
+      },
+      {
+        "unit_type_id": 307,
+        "asset_path": "assets/image/accessory/list/list_37.png"
+      },
+      {
+        "unit_type_id": 308,
+        "asset_path": "assets/image/accessory/list/list_38.png"
+      },
+      {
+        "unit_type_id": 309,
+        "asset_path": "assets/image/accessory/list/list_39.png"
+      }
+    ]
+  }
+]

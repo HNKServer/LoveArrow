@@ -14,8 +14,10 @@ from typing import Any
 
 import fastapi.responses
 
+from . import client_profile
 from .app import app
 from .config import config
+from .download import download
 
 
 DOWNLOAD_EXPECTATIONS: list[dict[str, Any]] = [
@@ -90,8 +92,9 @@ def _zip_has(path: str, name: str) -> bool:
 
 
 def _cn_archive_preflight() -> dict[str, Any]:
-    if config.CONFIG_DATA.download.backend != "cn_archive":
-        return {"backend": config.CONFIG_DATA.download.backend, "enabled": False}
+    cn_settings = config.get_profile_download(client_profile.ClientProfile.CN)
+    if not cn_settings.enabled or cn_settings.backend != "cn_archive":
+        return {"backend": cn_settings.backend, "enabled": bool(cn_settings.enabled)}
     try:
         backend = importlib.import_module("npps4.download.cn_archive")
         info = backend.preflight()
@@ -122,14 +125,26 @@ def _cn_archive_preflight() -> dict[str, Any]:
 @app.core.get("/npps4/cn-compat-audit.json")
 async def cn_compat_audit_endpoint():
     cfg = config.CONFIG_DATA
+    profiles = download.get_profile_status()
+    cn_settings = config.get_profile_download(client_profile.ClientProfile.CN)
+    gl_settings = config.get_profile_download(client_profile.ClientProfile.GL)
     return fastapi.responses.JSONResponse(
         {
-            "region": cfg.compat.region,
-            "download_backend": cfg.download.backend,
+            "default_profile": config.get_default_profile().value,
+            "profiles": profiles,
+            "cn": {
+                "enabled": bool(cn_settings.enabled),
+                "download_backend": cn_settings.backend,
+                "send_patched_server_info": bool(cn_settings.send_patched_server_info),
+            },
+            "gl": {
+                "enabled": bool(gl_settings.enabled),
+                "download_backend": gl_settings.backend,
+                "send_patched_server_info": bool(gl_settings.send_patched_server_info),
+            },
             "cn_main_headers": cfg.compat.cn_main_headers,
             "cn_wrappers": cfg.compat.cn_wrappers,
             "cn_optional_stubs": cfg.compat.cn_optional_stubs,
-            "send_patched_server_info": cfg.download.send_patched_server_info,
             "critical_areas": CRITICAL_COMPAT_AREAS,
             "download_expectations": DOWNLOAD_EXPECTATIONS,
             "cn_archive_preflight": _cn_archive_preflight(),

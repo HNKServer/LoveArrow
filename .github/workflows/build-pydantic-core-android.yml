@@ -1,0 +1,43 @@
+name: Build pydantic-core Android wheels
+
+on:
+  workflow_dispatch:
+    inputs:
+      archs:
+        description: "Android architectures for cibuildwheel"
+        required: true
+        default: "aarch64 x86_64"
+      pydantic_spec:
+        description: "Pydantic resolver spec"
+        required: true
+        default: "pydantic>=2.8,<3"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build pydantic-core Android wheels
+        run: |
+          bash tools/pydantic_core_android/build_pydantic_core_android.sh \
+            --python-bin python \
+            --python-tag cp313 \
+            --archs "${{ github.event.inputs.archs }}" \
+            --pydantic-spec "${{ github.event.inputs.pydantic_spec }}"
+      - name: Upload wheels and constraints
+        uses: actions/upload-artifact@v4
+        with:
+          name: pydantic-core-android-wheels
+          path: |
+            app/src/main/python/wheels/*.whl
+            app/src/main/python/constraints-android.txt
+            build/pydantic-core-android/resolve.json

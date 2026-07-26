@@ -4,23 +4,27 @@ import sqlalchemy
 
 from .. import idol
 from ..db import main
-from . import cn_content_master
+from . import content_master
 
 
 async def valid(context: idol.BasicSchoolIdolContext, event_scenario_id: int) -> bool:
-    return cn_content_master.event_by_id(event_scenario_id) is not None
+    return content_master.event_by_id(context.profile, event_scenario_id) is not None
 
 
 async def get(context: idol.BasicSchoolIdolContext, user: main.User, event_scenario_id: int):
     q = sqlalchemy.select(main.EventScenarioUnlock).where(
         main.EventScenarioUnlock.user_id == user.id,
+        main.EventScenarioUnlock.profile == context.profile.value,
         main.EventScenarioUnlock.event_scenario_id == event_scenario_id,
     )
     return (await context.db.main.execute(q)).scalar()
 
 
 async def get_all(context: idol.BasicSchoolIdolContext, user: main.User):
-    q = sqlalchemy.select(main.EventScenarioUnlock).where(main.EventScenarioUnlock.user_id == user.id)
+    q = sqlalchemy.select(main.EventScenarioUnlock).where(
+        main.EventScenarioUnlock.user_id == user.id,
+        main.EventScenarioUnlock.profile == context.profile.value,
+    )
     return list((await context.db.main.execute(q)).scalars())
 
 
@@ -40,6 +44,7 @@ async def unlock(
         context.db.main.add(
             main.EventScenarioUnlock(
                 user_id=user.id,
+                profile=context.profile.value,
                 event_scenario_id=event_scenario_id,
                 completed=completed,
                 is_new=is_new and not completed,

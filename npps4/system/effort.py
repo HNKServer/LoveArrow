@@ -34,7 +34,10 @@ async def get_effort_spec(context: idol.BasicSchoolIdolContext, live_effort_poin
         # live_effort_point_box_spec_m rows.  The proper fix is v4.32's DB
         # repair/regeneration, but keep this CN-only guard so an old read-only
         # effort.db_ cannot crash /lbonus/execute during account bootstrap.
-        if config.CONFIG_DATA.download.backend == "cn_archive" and config.is_cn_compat():
+        if (
+            config.is_cn_compat(context.profile)
+            and config.get_profile_download(context.profile).backend == "cn_archive"
+        ):
             return _SyntheticEffortSpec(live_effort_point_box_spec_id=live_effort_point_box_spec_id)
         raise ValueError(f"invalid live_effort_point_box_spec_id {live_effort_point_box_spec_id}")
 

@@ -90,6 +90,12 @@ class SecretboxData(HasIDString):
     rarity_rates: list[int]
     rarity_pools: list[list[int]]  # List of unit IDs in each pool
 
+    # Missing means the legacy page is available to both profiles.  Dynamic
+    # festival pools are populated from cards present in the exact requesting
+    # client catalogue, rather than copying unsupported foreign unit IDs.
+    profiles: list[Literal["cn", "gl"]] | None = None
+    pool_mode: Literal["configured", "thanks_festival"] = "configured"
+
     @property
     def secretbox_id(self) -> int:
         return self._internal_id
@@ -214,6 +220,14 @@ class ExchangeCost(pydantic.BaseModel):
 class StickerShop(item_model.BaseItem, HasIDString):
     name: str
     name_en: str | None = None
+    # Explicit Simplified-Chinese display name supplied by server_data.json.
+    # There is intentionally no runtime migration or Master-title synthesis
+    # for older operator configurations.
+    name_cn: str | None = None
+    # Optional profile visibility remains editable in server_data.json.  The
+    # runtime also validates every referenced ID against the exact client
+    # catalogue, so stale operator edits cannot reintroduce unsafe rows.
+    profiles: list[Literal["cn", "gl"]] | None = None
     costs: list[ExchangeCost]  # user can pay with one of cost in here
     limit: int = 0  # 0 means unlimited although some have hardcoded limit of 1 (e.g. backgrounds)
     end_time: int = 0  # 0 means no expiration date

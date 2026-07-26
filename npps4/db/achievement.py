@@ -4,7 +4,8 @@ import sqlalchemy.orm
 import sqlalchemy.pool
 
 from . import common
-from ..download import download
+from . import master_registry
+from .. import client_profile
 
 
 class FilterCategory(common.GameDBBase, common.MaybeEncrypted):
@@ -182,14 +183,6 @@ class UnitTypeGroup(common.GameDBBase):
     __table_args__ = (sqlalchemy.PrimaryKeyConstraint(achievement_unit_type_group_id, unit_type_id),)
 
 
-engine = sqlalchemy.ext.asyncio.create_async_engine(
-    f"sqlite+aiosqlite:///file:{download.get_db_path('achievement')}?mode=ro&uri=true",
-    poolclass=sqlalchemy.pool.NullPool,
-    connect_args={"check_same_thread": False},
-)
-sessionmaker = sqlalchemy.ext.asyncio.async_sessionmaker(engine)
 
-
-def get_sessionmaker():
-    global sessionmaker
-    return sessionmaker
+def get_sessionmaker(profile: client_profile.ClientProfile | str | None = None):
+    return master_registry.get_sessionmaker("achievement", profile)

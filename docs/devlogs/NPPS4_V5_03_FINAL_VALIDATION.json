@@ -1,0 +1,211 @@
+{
+  "passed": 41,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "9.7 application version is not guessed as GL",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "9.11 application version remains default/ambiguous",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "97.x content header still identifies CN",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "59.x content header still identifies GL",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "GHome path identifies CN",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "config fingerprints shipped RSA keys",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "honoka key maps to CN",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "NPPS4 default key maps to GL",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "custom RSA keys remain unguessed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "wrapper primary key is the GL/NPPS4 key",
+      "passed": true,
+      "detail": "7ca81f4b98d400534546e08eb8f5465b359fbfa233316b1db81b721a2fdee9fc"
+    },
+    {
+      "name": "CN/honoka key is a distinct key domain",
+      "passed": true,
+      "detail": "5373be407289643ebffaf604bfccce42dc5d6a38e84b4bf6297ecf72ac81d05d"
+    },
+    {
+      "name": "honoka_server_key resolves CN before token creation",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "honoka_server_key token records CN profile",
+      "passed": true,
+      "detail": "('honoka_server_key', 'cn')"
+    },
+    {
+      "name": "honoka_server_key authkey response returns resolved token",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "primary resolves GL before token creation",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "primary token records GL profile",
+      "passed": true,
+      "detail": "('primary', 'gl')"
+    },
+    {
+      "name": "primary authkey response returns resolved token",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "signed session profile overrides temporary header/default",
+      "passed": true,
+      "detail": "[<Profile.GL: 'gl'>]"
+    },
+    {
+      "name": "session RSA label is restored",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "CN response emits profile Server-Version",
+      "passed": true,
+      "detail": "{'server-version': '97.4.6', 'x-message-sign': 'sig', 'status_code': '200', 'content-type': 'application/json; charset=utf-8', 'x-powered-by': 'KLab Native APP Platform', 'server_version': '20120129', 'version_up': '0', 'user_id': '', 'authorize': 'consumerKey=lovelive_test&timeStamp=123&version=1.1&token=&nonce=1&user_id=&requestTimeStamp=123', 'content-length': '93'}"
+    },
+    {
+      "name": "CN response emits profile release keys",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "GL response emits profile Server-Version",
+      "passed": true,
+      "detail": "{'server-version': '59.4', 'x-message-sign': 'sig', 'status_code': '200', 'content-length': '93', 'content-type': 'application/json'}"
+    },
+    {
+      "name": "GL response emits profile release keys",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "response version calls carry explicit profiles",
+      "passed": true,
+      "detail": "[<Profile.CN: 'cn'>, <Profile.GL: 'gl'>]"
+    },
+    {
+      "name": "release key calls carry explicit profiles",
+      "passed": true,
+      "detail": "[<Profile.CN: 'cn'>, <Profile.GL: 'gl'>]"
+    },
+    {
+      "name": "CN header decision carries explicit profiles",
+      "passed": true,
+      "detail": "[<Profile.CN: 'cn'>, <Profile.GL: 'gl'>]"
+    },
+    {
+      "name": "id=12 no longer masquerades as announcement",
+      "passed": true,
+      "detail": "{'content-length': '30', 'content-type': 'application/json'}"
+    },
+    {
+      "name": "id=13 remains the bundled static page",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "no fabricated id=12 file is bundled",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "static source documents native forced-update contract",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "all runtime globals are bound",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "v5.03 build ID present",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "startup logger compatibility retained",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Android/PC Python trees match",
+      "passed": true,
+      "detail": "left=2314 right=2314"
+    },
+    {
+      "name": "supplied CN APK embeds honoka/CN public key",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "supplied CN APK does not embed NPPS4/GL public key",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "device reached login/authkey",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "v5.02 entered Android forced-update id=12",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "v5.02 redirect chain loaded API docs successfully",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "blocked modal prevented login/startUp",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "HelpWebView remained active",
+      "passed": true,
+      "detail": ""
+    }
+  ]
+}

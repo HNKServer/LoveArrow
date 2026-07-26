@@ -1,0 +1,157 @@
+{
+  "passed": [
+    "PASS: Android Python compileall",
+    "PASS: PC Python compileall",
+    "PASS: config.sample.toml TOML parse",
+    "PASS: config.sample.toml disables legacy global backend",
+    "PASS: config.sample.toml contains profile-specific download tree",
+    "PASS: config.dual.sample.toml TOML parse",
+    "PASS: config.dual.sample.toml disables legacy global backend",
+    "PASS: config.dual.sample.toml contains profile-specific download tree",
+    "PASS: config.cn-local.sample.toml TOML parse",
+    "PASS: config.cn-local.sample.toml disables legacy global backend",
+    "PASS: config.cn-local.sample.toml contains profile-specific download tree",
+    "PASS: config.gl-online.sample.toml TOML parse",
+    "PASS: config.gl-online.sample.toml disables legacy global backend",
+    "PASS: config.gl-online.sample.toml contains profile-specific download tree",
+    "PASS: dual sample enables CN and GL together",
+    "PASS: dual sample CN local backend",
+    "PASS: dual sample GL online backend",
+    "PASS: old global quick-switch UI/runtime removed",
+    "PASS: Wrapper explicit selector token: MODE_DISABLED",
+    "PASS: Wrapper explicit selector token: MODE_LOCAL",
+    "PASS: Wrapper explicit selector token: MODE_ONLINE",
+    "PASS: Wrapper explicit selector token: setProfileMode",
+    "PASS: Wrapper explicit selector token: PROFILE_CN",
+    "PASS: Wrapper explicit selector token: PROFILE_GL",
+    "PASS: Wrapper exposes independent explicit CN/GL selectors",
+    "PASS: old download_profile preference migrates once then is removed",
+    "PASS: old two-mode values have deterministic migration",
+    "PASS: Wrapper prevents both profiles being disabled",
+    "PASS: obsolete diagnostic-report GUI and bridge removed",
+    "PASS: Wrapper no longer defaults to port 51376",
+    "PASS: Wrapper defaults to port 8080",
+    "PASS: generated Android config keeps optional stubs disabled",
+    "PASS: Kotlin sources have no parser/structure errors",
+    "PASS: runtime code has no removed process-global download/region reads",
+    "PASS: CN wrappers are registered from raw capability config, not import-time ContextVar",
+    "PASS: legacy User.key claim is restricted to historical default profile",
+    "PASS: capability/version helpers accept explicit profile",
+    "PASS: Android payload includes dual-profile migration",
+    "PASS: Android payload includes profile-story migration",
+    "PASS: GL event_common count is 755",
+    "PASS: GL multi_unit_scenario count is 57",
+    "PASS: clean dual-profile runtime imports and registers required routes",
+    "PASS: CN/GL versions remain independent in one process",
+    "PASS: Desktop Alembic contains v5 profile tables",
+    "PASS: Desktop Alembic stamped at profile_story_state",
+    "PASS: Desktop Alembic preserves two identities on one shared user",
+    "PASS: Desktop Alembic story state includes profile column",
+    "PASS: Android schema contains v5 profile tables",
+    "PASS: Android schema stamped at profile_story_state",
+    "PASS: Android schema preserves two identities on one shared user",
+    "PASS: Android schema story state includes profile column",
+    "PASS: GL accessory lifecycle produced enhanced/rank-up persistent accessory",
+    "PASS: GL accessory lifecycle persisted Glass/Jewel material consumption",
+    "PASS: GL accessory lifecycle persisted final unload state",
+    "PASS: area/list safe endpoint registered",
+    "PASS: payment/month safe endpoint registered",
+    "PASS: unknown batch endpoint uses HTTP-200 game error",
+    "PASS: unknown direct SIF endpoint uses signed game error path",
+    "PASS: v4.60 verified banner resource preserved: npps4_data_transfer.png",
+    "PASS: v4.60 verified banner resource preserved: wv_ba_117.png.imag",
+    "PASS: v4.60 verified banner resource preserved: tx_wv_ba_117.texb",
+    "PASS: v4.60 verified banner resource preserved: 4_0_999.zip",
+    "PASS: Android/PC Python tree parity (2314 files)",
+    "PASS: CN/dual-profile contract guard",
+    "PASS: GL APK SHA-256 matches build report",
+    "PASS: GL APK package renamed for side-by-side install",
+    "PASS: GL encrypted server_info points to 127.0.0.1:8080",
+    "PASS: GL settings Activity default points to 127.0.0.1:8080",
+    "PASS: GL APK v2 signature independently verifies",
+    "PASS: GL APK v1 signature verifies",
+    "PASS: GL APK stored entries are 4-byte aligned",
+    "PASS: Android Wrapper version is 0.5.0 / 500",
+    "PASS: final Build ID set"
+  ],
+  "failed": [],
+  "details": {
+    "Android Python compileall": "",
+    "PC Python compileall": "",
+    "Kotlin sources have no parser/structure errors": "t {\n                       ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:100:59: error: unresolved reference: JSONObject\n    fun start(context: Context, host: String, port: Int): JSONObject {\n                                                          ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:111:16: error: unresolved reference: JSONObject\n        return JSONObject(result)\n               ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:114:23: error: unresolved reference: Context\n    fun stop(context: Context): JSONObject {\n                      ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:114:33: error: unresolved reference: JSONObject\n    fun stop(context: Context): JSONObject {\n                                ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:115:14: error: unresolved reference: Python\n        if (!Python.isStarted()) return JSONObject(mapOf(\"ok\" to false, \"error\" to \"Python runtime not started\"))\n             ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:115:41: error: unresolved reference: JSONObject\n        if (!Python.isStarted()) return JSONObject(mapOf(\"ok\" to false, \"error\" to \"Python runtime not started\"))\n                                        ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:117:16: error: unresolved reference: JSONObject\n        return JSONObject(result)\n               ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:120:25: error: unresolved reference: Context\n    fun status(context: Context): JSONObject {\n                        ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:120:35: error: unresolved reference: JSONObject\n    fun status(context: Context): JSONObject {\n                                  ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:122:16: error: unresolved reference: JSONObject\n        return JSONObject(result)\n               ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:125:37: error: unresolved reference: Context\n    fun reloadEditableData(context: Context): JSONObject {\n                                    ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:125:47: error: unresolved reference: JSONObject\n    fun reloadEditableData(context: Context): JSONObject {\n                                              ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:132:16: error: unresolved reference: JSONObject\n        return JSONObject(result)\n               ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:136:29: error: unresolved reference: Context\n    fun safeStatus(context: Context, host: String, port: Int): JSONObject {\n                            ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:136:64: error: unresolved reference: JSONObject\n    fun safeStatus(context: Context, host: String, port: Int): JSONObject {\n                                                               ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:137:14: error: unresolved reference: Python\n        if (!Python.isStarted()) {\n             ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:138:20: error: unresolved reference: JSONObject\n            return JSONObject()\n                   ^\nmnt/data/work_npps4_v500/android/NPPS4-Android-Wrapper-v5_00-cn-gl-dual-profile-source/app/src/main/java/moe/honoka/npps4wrapper/PythonBridge.kt:151:13: error: unresolved reference: JSONObject\n            JSONObject()\n            ^\n",
+    "runtime code has no removed process-global download/region reads": [],
+    "GL event_common count is 755": 755,
+    "GL multi_unit_scenario count is 57": 57,
+    "clean dual-profile runtime imports and registers required routes": {
+      "stdout": "{\"route_count\": 244, \"missing\": [], \"cn_version\": \"97.4.6\", \"gl_version\": \"59.4\", \"cn_enabled\": true, \"gl_enabled\": true, \"default\": \"cn\"}\n",
+      "stderr": "Download profile ready profile=cn backend=none version=97.4.6\nDownload profile ready profile=gl backend=none version=59.4\nNPPS4 build: v5.00-cn-gl-dual-profile-final Request/session-level CN and GL profiles; shared user/social state with profile-safe master projection; independent local/online download sources; preserve the verified v4.60 CN banner and native Museum behavior\n",
+      "parsed": {
+        "route_count": 244,
+        "missing": [],
+        "cn_version": "97.4.6",
+        "gl_version": "59.4",
+        "cn_enabled": true,
+        "gl_enabled": true,
+        "default": "cn"
+      }
+    },
+    "CN/GL versions remain independent in one process": {
+      "route_count": 244,
+      "missing": [],
+      "cn_version": "97.4.6",
+      "gl_version": "59.4",
+      "cn_enabled": true,
+      "gl_enabled": true,
+      "default": "cn"
+    },
+    "Desktop Alembic stamped at profile_story_state": "profile_story_state",
+    "Desktop Alembic preserves two identities on one shared user": [
+      [
+        "cn",
+        "cn-key"
+      ],
+      [
+        "gl",
+        "gl-key"
+      ]
+    ],
+    "Android schema stamped at profile_story_state": "profile_story_state",
+    "Android schema preserves two identities on one shared user": [
+      [
+        "cn",
+        "cn-key"
+      ],
+      [
+        "gl",
+        "gl-key"
+      ]
+    ],
+    "GL accessory lifecycle produced enhanced/rank-up persistent accessory": [
+      [
+        1,
+        300,
+        1,
+        0
+      ]
+    ],
+    "GL accessory lifecycle persisted Glass/Jewel material consumption": [
+      [
+        1008,
+        19
+      ],
+      [
+        1013,
+        1
+      ]
+    ],
+    "GL accessory lifecycle persisted final unload state": 0,
+    "v4.60 verified banner resource preserved: npps4_data_transfer.png": "08e658be3c2cc43e4b79a1974da0930da655ea829badef4bafd2a5396c6f4520",
+    "v4.60 verified banner resource preserved: wv_ba_117.png.imag": "5e8f31590e8d7dd98dd1dbe7e010d72164617feed1231a4363be166cc1b21d54",
+    "v4.60 verified banner resource preserved: tx_wv_ba_117.texb": "92e9339a23425f10a12251cad01a78fc0a63766acdb73ebe245897991c0abf33",
+    "v4.60 verified banner resource preserved: 4_0_999.zip": "3d20e352095d450662fc4b736e7156d5ef007c717ffd882adfd4a996f174af2b",
+    "CN/dual-profile contract guard": "CN contract guard OK\n",
+    "GL APK SHA-256 matches build report": "308ec3322e598ae76ea554455d8bef8320fb9ff7313557693ddaa10630981572",
+    "GL APK v2 signature independently verifies": "v2 verified\nWARNING: THIS IS A PROTOTYPE; DO NOT USE IN PRODUCTION!\n",
+    "GL APK v1 signature verifies": "\njar verified.\n\nWarning: \nThis jar contains entries whose certificate chain is invalid. Reason: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target\nThis jar contains entries whose signer certificate is self-signed.\nThis jar contains signatures that do not include a timestamp. Without a timestamp, users may not be able to validate this jar after any of the signer certificates expire (as early as 2036-07-15).\nPOSIX file permission and/or symlink attributes detected. These attributes are ignored when signing and are not protected by the signature.\n\nRe-run with the -verbose and -certs options for more details.\n"
+  }
+}

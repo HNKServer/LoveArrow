@@ -1,0 +1,24 @@
+{
+  "build_id": "v5.29-special-target-runtime-owned-map-fix",
+  "package": "PC",
+  "android_version_code": 529,
+  "android_version_name": "0.5.29",
+  "embedded_python_files": 2340,
+  "alembic_head": "costume_full_cycle",
+  "new_database_migration": false,
+  "special_accessory_target_resolution": {
+    "runtime_mapping": true,
+    "current_profile_exact_mapping": true,
+    "owned_cross_profile_mapping": true,
+    "server_bundled_source_profile_unit_creation": true,
+    "post_write_database_verification": true,
+    "serial_result_diagnostics": true
+  },
+  "full_cross_profile_simulation": {
+    "unique_targets": 484,
+    "cards_created": 1452,
+    "verified_targets": 484,
+    "missing_targets": 0
+  },
+  "ranking_or_museum_schema_change": false
+}

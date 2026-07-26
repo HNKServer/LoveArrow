@@ -71,7 +71,7 @@ def main():
         "-H", "--host", default=os.getenv("NPPS4_HOST", "0.0.0.0"), help="IP address for NPPS4 to listen on."
     )
     run_parser.add_argument(
-        "-p", "--port", type=int, default=int(os.getenv("NPPS4_PORT", "51376")), help="TCP port for NPPS4 to listen on."
+        "-p", "--port", type=int, default=int(os.getenv("NPPS4_PORT", "8080")), help="TCP port for NPPS4 to listen on."
     )
 
     script_parser = subparser.add_parser(

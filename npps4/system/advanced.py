@@ -8,16 +8,18 @@ import sqlalchemy
 from . import accessory
 from . import award
 from . import background
-from . import cn_content_master
+from . import content_master
 from . import common
 from . import exchange
 from . import eventscenario
+from . import friend
 from . import item
 from . import item_model
 from . import live
 from . import live_model
 from . import museum
 from . import multiunit
+from . import profile_projection
 from . import removable_skill
 from . import scenario
 from . import scenario_model
@@ -44,7 +46,7 @@ class AddResult:
         return self.success
 
 
-class PartyCenterUnitInfo(pydantic.BaseModel):
+class PartyCenterUnitInfo(unit_model.OptionalCostumeModel):
     unit_owning_user_id: int
     unit_id: int
     exp: int
@@ -73,6 +75,7 @@ class PartyCenterUnitInfo(pydantic.BaseModel):
     is_skill_level_max: bool
     setting_award_id: int
     removable_skill_ids: list[int] = pydantic.Field(default_factory=list)
+    costume: unit_model.CostumeInfo | None = None
 
 
 class PartyUserInfo(pydantic.BaseModel):
@@ -217,21 +220,25 @@ async def add_item(context: idol.BasicSchoolIdolContext, user: main.User, i: com
     return AddResult(False)  # TODO
 
 
-async def get_user_guest_party_info(context: idol.BasicSchoolIdolContext, user: main.User) -> PartyInfo:
-    party_user_info = PartyUserInfo(user_id=user.id, name=user.name, level=user.level)
+async def get_user_guest_party_info(
+    context: idol.BasicSchoolIdolContext,
+    target_user: main.User,
+    current_user: main.User | None = None,
+) -> PartyInfo:
+    party_user_info = PartyUserInfo(user_id=target_user.id, name=target_user.name, level=target_user.level)
 
-    # Get unit center info
-    unit_center = await unit.get_unit_center(context, user)
-    if unit_center is None:
-        raise ValueError("invalid user no center")
+    projected = await profile_projection.live_guest_center_unit(context, target_user)
+    if projected is None:
+        raise ValueError("user center is unavailable in receiving profile")
+    unit_data, unit_info, unit_full_data, unit_stats = projected
+    setting_award_id = await profile_projection.award_id(context, target_user.active_award)
+    removable_skill_ids = await profile_projection.filter_removable_skills(
+        context, await unit.get_unit_removable_skills(context, unit_data)
+    )
+    display_costume = await profile_projection.social_costume(
+        context, target_user, projected
+    )
 
-    unit_data = await unit.get_unit(context, unit_center)
-    unit.validate_unit(user, unit_data)
-    unit_info = await unit.get_unit_info(context, unit_data.unit_id)
-    if unit_info is None:
-        raise ValueError("invalid user center no info")
-
-    unit_full_data, unit_stats = await unit.get_unit_data_full_info(context, unit_data)
     party_unit_info = PartyCenterUnitInfo(
         unit_owning_user_id=unit_data.id,
         unit_id=unit_data.unit_id,
@@ -259,18 +266,24 @@ async def get_user_guest_party_info(context: idol.BasicSchoolIdolContext, user: 
         is_rank_max=unit_full_data.is_rank_max,
         is_signed=unit_data.is_signed,
         is_skill_level_max=unit_full_data.is_skill_level_max,
-        setting_award_id=user.active_award,
+        setting_award_id=setting_award_id,
+        removable_skill_ids=removable_skill_ids,
+        costume=display_costume,
     )
+
+    friend_status = const.FRIEND_STATUS.OTHER
+    available_social_point = 10
+    if current_user is not None and current_user.id != target_user.id:
+        friend_status = await friend.get_friend_status(context, current_user, target_user)
+        available_social_point = 10 if friend_status == const.FRIEND_STATUS.FRIEND else 5
 
     return PartyInfo(
         user_info=party_user_info,
         center_unit_info=party_unit_info,
-        setting_award_id=user.active_award,
-        # TODO
-        available_social_point=5,
-        friend_status=0,
+        setting_award_id=setting_award_id,
+        available_social_point=available_social_point,
+        friend_status=int(friend_status),
     )
-
 
 async def get_random_user_for_partylist(
     context: idol.BasicSchoolIdolContext, /, user: main.User, *, include_current: bool = True, limit: int = 3
@@ -532,6 +545,7 @@ class TeamStatCalculator:
                     unit_removable_skill_capacity=unit_data.unit_removable_skill_capacity,
                     removable_skill_ids=await unit.get_unit_removable_skills(self.context, unit_data),
                     position=i + 1,
+                    costume=unit_full_data.costume,
                 )
             )
 
@@ -669,11 +683,11 @@ async def get_item_name(
                     scenario_name = context.get_text(scenario_info.title, scenario_info.title_en)
                     return f"{scenario_chapter_name} - {scenario_name}"
         case const.ADD_TYPE.EVENT_SCENARIO:
-            info = cn_content_master.event_by_id(item_id)
+            info = content_master.event_by_id(context.profile, item_id)
             if info is not None:
                 return context.get_text(info.title, info.title_en) or f"Event story #{item_id}"
         case const.ADD_TYPE.MULTI_UNIT_SCENARIO:
-            info = cn_content_master.multi_by_id(item_id)
+            info = content_master.multi_by_id(context.profile, item_id)
             if info is not None:
                 return context.get_text(info.title, info.title_en) or f"Multi-unit story #{item_id}"
         case const.ADD_TYPE.SCHOOL_IDOL_SKILL:

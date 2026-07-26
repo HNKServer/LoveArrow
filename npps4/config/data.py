@@ -128,7 +128,42 @@ class _DownloadCustom(pydantic.BaseModel):
     file: str = ""
 
 
+class _ProfileDownload(pydantic.BaseModel):
+    """Independent download/master source for one client profile."""
+
+    enabled: bool = False
+    backend: str = ""
+    send_patched_server_info: bool = True
+    # normal | all. Applies only to this profile's native Museum catalogue.
+    museum_unlock_policy: str = "all"
+    none: _DownloadNone = pydantic.Field(default_factory=_DownloadNone)
+    n4dlapi: _DownloadNPPS4DLAPI = pydantic.Field(default_factory=_DownloadNPPS4DLAPI)
+    internal: _DownloadInternal = pydantic.Field(default_factory=_DownloadInternal)
+    cn_archive: _DownloadCNArchive = pydantic.Field(default_factory=_DownloadCNArchive)
+    custom: _DownloadCustom = pydantic.Field(default_factory=_DownloadCustom)
+
+    @pydantic.model_validator(mode="before")
+    @classmethod
+    def migrate_nested_museum_policy(cls, value):
+        """Accept the v4.60-v5.04 CN-only nested policy without losing it."""
+        if isinstance(value, dict) and "museum_unlock_policy" not in value:
+            nested = value.get("cn_archive")
+            if isinstance(nested, dict):
+                legacy = nested.get("museum_unlock_policy", nested.get("museum_bridge_unlock_policy"))
+                if legacy is not None:
+                    value = dict(value)
+                    value["museum_unlock_policy"] = legacy
+        return value
+
+
+class _DownloadProfiles(pydantic.BaseModel):
+    cn: _ProfileDownload = pydantic.Field(default_factory=_ProfileDownload)
+    gl: _ProfileDownload = pydantic.Field(default_factory=_ProfileDownload)
+
+
 class _Download(pydantic.BaseModel):
+    # Legacy v4.60 fields remain readable.  When profiles.* is absent the
+    # validator below migrates this single backend to the matching profile.
     backend: str = ""
     send_patched_server_info: Annotated[
         bool, pydantic.Field(validation_alias=pydantic.AliasChoices("send_patched_server_info", "fixserverinfo"))
@@ -138,6 +173,27 @@ class _Download(pydantic.BaseModel):
     internal: _DownloadInternal = pydantic.Field(default_factory=_DownloadInternal)
     cn_archive: _DownloadCNArchive = pydantic.Field(default_factory=_DownloadCNArchive)
     custom: _DownloadCustom = pydantic.Field(default_factory=_DownloadCustom)
+
+    default_profile: str = "cn"
+    profiles: _DownloadProfiles = pydantic.Field(default_factory=_DownloadProfiles)
+
+    @pydantic.model_validator(mode="after")
+    def migrate_legacy_backend(self):
+        cn = self.profiles.cn
+        gl = self.profiles.gl
+        if not cn.enabled and not gl.enabled and self.backend:
+            target = cn if self.backend == "cn_archive" else gl
+            target.enabled = True
+            target.backend = self.backend
+            target.send_patched_server_info = self.send_patched_server_info
+            target.none = self.none
+            target.n4dlapi = self.n4dlapi
+            target.internal = self.internal
+            target.cn_archive = self.cn_archive
+            target.museum_unlock_policy = self.cn_archive.museum_unlock_policy
+            target.custom = self.custom
+            self.default_profile = "cn" if target is cn else "gl"
+        return self
 
 
 class _Game(pydantic.BaseModel):
@@ -172,9 +228,9 @@ class _Advanced(pydantic.BaseModel):
 
 
 class _Compat(pydantic.BaseModel):
-    # Keep CN behavior isolated so ordinary JP/Global NPPS4 instances keep
-    # their original behavior. Valid values are currently "global" and "cn".
-    region: str = "global"
+    # Deprecated v4.x process-global selector.  It remains readable so old
+    # config files validate, but request/session ClientProfile is authoritative.
+    region: str = "dual"
     # Do not add extra /main.php headers by default. This is not part of NPPS4
     # gameplay logic and should only be enabled when a CN client capture proves
     # it is necessary. GHome responses are handled separately.
@@ -218,6 +274,14 @@ class _Gameplay(pydantic.BaseModel):
     secretbox_cost_multiplier: Annotated[
         float, pydantic.Field(validation_alias=pydantic.AliasChoices("secretbox_cost_multiplier", "gachacostmul"))
     ] = 1
+    # Museum/Album unlocks remain visible, but their permanent Smile/Pure/Cool
+    # bonuses are disabled by default so CN and GL share the same scoring
+    # foundation. Operators may explicitly re-enable the regional bonus.
+    museum_stat_bonus_enabled: Annotated[
+        bool, pydantic.Field(validation_alias=pydantic.AliasChoices(
+            "museum_stat_bonus_enabled", "museumstats"
+        ))
+    ] = False
 
 
 class ConfigData(pydantic_settings.BaseSettings):
@@ -250,25 +314,36 @@ class ConfigData(pydantic_settings.BaseSettings):
 
     @pydantic.model_validator(mode="after")
     def check_download_mode_sane(self):
-        dl = self.download
-        match dl.backend:
-            case None:
-                raise ValueError("NPPS4 download backend is not specified")
-            case "none":
+        enabled = []
+        for profile_name in ("cn", "gl"):
+            profile = getattr(self.download.profiles, profile_name)
+            if not profile.enabled:
+                continue
+            enabled.append(profile_name)
+            backend = profile.backend
+            if backend == "none":
                 pass
-            case "n4dlapi":
-                if not dl.n4dlapi.server:
-                    raise ValueError("NPPS4 DLAPI missing server")
-            case "internal":
-                if not dl.internal.archive_root:
-                    raise ValueError("Missing archive-root directory")
-            case "custom":
-                if not dl.custom.file:
-                    raise ValueError("Missing Python script for custom downloader")
-            case "cn_archive":
-                if not (dl.cn_archive.android_archives or dl.cn_archive.ios_archives):
+            elif backend == "n4dlapi":
+                if not profile.n4dlapi.server:
+                    raise ValueError(f"{profile_name.upper()} NPPS4 DLAPI missing server")
+            elif backend == "internal":
+                if not profile.internal.archive_root:
+                    raise ValueError(f"{profile_name.upper()} missing archive-root directory")
+            elif backend == "custom":
+                if not profile.custom.file:
+                    raise ValueError(f"{profile_name.upper()} missing custom downloader script")
+            elif backend == "cn_archive":
+                if profile_name != "cn":
+                    raise ValueError("cn_archive is only valid for the CN profile")
+                if not (profile.cn_archive.android_archives or profile.cn_archive.ios_archives):
                     raise ValueError("Missing CN archive directory")
+            else:
+                raise ValueError(f"Unknown {profile_name.upper()} download backend: {backend!r}")
 
+        if not enabled:
+            raise ValueError("At least one CN/GL client profile must be enabled")
+        if self.download.default_profile not in enabled:
+            self.download.default_profile = enabled[0]
         return self
 
 

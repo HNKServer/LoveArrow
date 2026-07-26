@@ -7,6 +7,7 @@ NPPS4's own system layer.  Do not put no-op stubs or honoka-style shortcuts here
 those belong in cn_optional_stubs.py and must remain opt-in.
 """
 
+import json
 import secrets
 
 import pydantic
@@ -16,6 +17,7 @@ from . import live as game_live
 from .. import idol
 from .. import util
 from ..db import live as live_db
+from ..db import main as main_db
 from ..system import achievement as achievement_system
 from ..system import advanced
 from ..system import live as live_system
@@ -118,10 +120,15 @@ class RLiveRewardRequest(pydantic.BaseModel):
     event_id: Any = None
 
 
-# In-memory token map is intentionally small-scope.  It avoids adding a DB
-# migration while still lets rlive/* reuse NPPS4's real live/play and live/reward
-# paths.  Losing the map on restart simply invalidates in-progress random lives.
-_RLIVE_SESSIONS: dict[tuple[int, str], int] = {}
+RLIVE_SESSION_TTL = 2 * 60 * 60
+
+
+async def _cleanup_rlive_sessions(context: idol.BasicSchoolIdolContext) -> None:
+    await context.db.main.execute(
+        sqlalchemy.delete(main_db.RandomLiveSession).where(
+            main_db.RandomLiveSession.expires_at <= util.time()
+        )
+    )
 
 
 def _current_random_live_attribute() -> int:
@@ -185,15 +192,33 @@ async def _get_rlive_live_difficulty_id(context: idol.SchoolIdolUserParams, toke
     current_user = await user_system.get_current(context)
     if not token:
         raise idol.error.IdolError(detail="random live token is required", http_code=403)
-    live_difficulty_id = _RLIVE_SESSIONS.get((current_user.id, token))
-    if live_difficulty_id is None:
+    await _cleanup_rlive_sessions(context)
+    query = sqlalchemy.select(main_db.RandomLiveSession).where(
+        main_db.RandomLiveSession.user_id == current_user.id,
+        main_db.RandomLiveSession.profile == context.profile.value,
+        main_db.RandomLiveSession.token == token,
+        main_db.RandomLiveSession.expires_at > util.time(),
+    ).limit(1)
+    row = (await context.db.main.execute(query)).scalar()
+    if row is None:
         raise idol.error.IdolError(detail="random live session not found", http_code=403)
-    return live_difficulty_id
+    try:
+        payload = json.loads(row.payload_json)
+        return int(payload["live_difficulty_id"])
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+        await context.db.main.delete(row)
+        raise idol.error.IdolError(detail="random live session is invalid", http_code=403) from None
 
 
 async def _delete_rlive_session(context: idol.SchoolIdolUserParams, token: str) -> None:
     current_user = await user_system.get_current(context)
-    _RLIVE_SESSIONS.pop((current_user.id, token), None)
+    await context.db.main.execute(
+        sqlalchemy.delete(main_db.RandomLiveSession).where(
+            main_db.RandomLiveSession.user_id == current_user.id,
+            main_db.RandomLiveSession.profile == context.profile.value,
+            main_db.RandomLiveSession.token == token,
+        )
+    )
 
 
 @idol.register("rlive", "lot", batchable=False)
@@ -214,7 +239,15 @@ async def rlive_lot(context: idol.SchoolIdolUserParams, request: RLiveLotRequest
     live_difficulty_id, ac_flag, swing_flag = secrets.choice(candidates)
     token = secrets.token_urlsafe(48)
     current_user = await user_system.get_current(context)
-    _RLIVE_SESSIONS[(current_user.id, token)] = live_difficulty_id
+    await _cleanup_rlive_sessions(context)
+    context.db.main.add(main_db.RandomLiveSession(
+        token=token,
+        user_id=current_user.id,
+        profile=context.profile.value,
+        payload_json=json.dumps({"live_difficulty_id": live_difficulty_id}, separators=(",", ":")),
+        expires_at=util.time() + RLIVE_SESSION_TTL,
+    ))
+    await context.db.main.flush()
 
     party_data = await game_live.live_partylist(
         context,

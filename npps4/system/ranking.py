@@ -23,7 +23,7 @@ async def get_live_ranking(context: idol.BasicSchoolIdolContext, live_difficulty
         q = (
             sqlalchemy.select(main.LiveClear)
             .where(main.LiveClear.live_difficulty_id == live_difficulty_id, main.LiveClear.clear_cnt > 0)
-            .order_by(main.LiveClear.hi_score.desc())
+            .order_by(main.LiveClear.hi_score.desc(), main.LiveClear.user_id.asc())
             .limit(QUERY_PER_PAGE)
             .offset(page * QUERY_PER_PAGE)
         )
@@ -91,3 +91,46 @@ async def get_daily_ranking(context: idol.BasicSchoolIdolContext, page: int, yes
     result = await context.db.main.execute(q)
 
     return result.scalars().all(), total_rankings
+
+
+async def get_live_rank(
+    context: idol.BasicSchoolIdolContext, live_difficulty_id: int, user_id: int
+) -> int:
+    q = sqlalchemy.select(main.LiveClear).where(
+        main.LiveClear.live_difficulty_id == live_difficulty_id,
+        main.LiveClear.user_id == user_id,
+        main.LiveClear.clear_cnt > 0,
+    )
+    row = (await context.db.main.execute(q)).scalar_one_or_none()
+    if row is None:
+        return 0
+    ahead_q = sqlalchemy.select(sqlalchemy.func.count()).select_from(main.LiveClear).where(
+        main.LiveClear.live_difficulty_id == live_difficulty_id,
+        main.LiveClear.clear_cnt > 0,
+        sqlalchemy.or_(
+            main.LiveClear.hi_score > row.hi_score,
+            sqlalchemy.and_(main.LiveClear.hi_score == row.hi_score, main.LiveClear.user_id < user_id),
+        ),
+    )
+    return int((await context.db.main.execute(ahead_q)).scalar() or 0) + 1
+
+
+async def get_daily_rank(
+    context: idol.BasicSchoolIdolContext, user_id: int, yesterday: bool
+) -> int:
+    day_index = util.get_days_since_unix() - int(bool(yesterday))
+    q = sqlalchemy.select(main.PlayerRanking).where(
+        main.PlayerRanking.user_id == user_id,
+        main.PlayerRanking.day == day_index,
+    )
+    row = (await context.db.main.execute(q)).scalar_one_or_none()
+    if row is None:
+        return 0
+    ahead_q = sqlalchemy.select(sqlalchemy.func.count()).select_from(main.PlayerRanking).where(
+        main.PlayerRanking.day == day_index,
+        sqlalchemy.or_(
+            main.PlayerRanking.score > row.score,
+            sqlalchemy.and_(main.PlayerRanking.score == row.score, main.PlayerRanking.user_id < user_id),
+        ),
+    )
+    return int((await context.db.main.execute(ahead_q)).scalar() or 0) + 1

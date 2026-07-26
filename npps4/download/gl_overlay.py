@@ -22,7 +22,7 @@ from typing import Any
 
 import httpx
 
-from .. import idoltype, util
+from .. import client_profile, idoltype, util
 from ..config import config
 
 _EMPTY_MD5 = hashlib.md5(b"").hexdigest()
@@ -43,7 +43,7 @@ class OverlayInfo:
     sha256: str
 
 
-_cfg = config.CONFIG_DATA.download.cn_archive
+_cfg = config.get_profile_download(client_profile.ClientProfile.CN).cn_archive
 _enabled = bool(getattr(_cfg, "gl_overlay_enabled", False))
 _base_url = str(getattr(_cfg, "gl_overlay_server", "") or "").strip().rstrip("/") + "/"
 _shared_key = str(getattr(_cfg, "gl_overlay_shared_key", "") or "")

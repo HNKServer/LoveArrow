@@ -16,6 +16,27 @@ from ..system import core
 SALT_SIZE = 16
 
 
+def _hash_passwd(passwd: str) -> str:
+    salt = util.randbytes(SALT_SIZE)
+    hmac_hash = hmac.new(salt, passwd.encode("UTF-8"), digestmod=hashlib.sha512).digest()
+    result = salt + hmac_hash[SALT_SIZE:]
+    return str(base64.b64encode(result), "UTF-8")
+
+
+def _check_passwd(encoded: str | None, passwd: str) -> bool:
+    if encoded is None:
+        return False
+    try:
+        result = base64.b64decode(encoded)
+    except Exception:
+        return False
+    if len(result) < SALT_SIZE:
+        return False
+    salt = result[:SALT_SIZE]
+    hmac_hash = hmac.new(salt, passwd.encode("UTF-8"), digestmod=hashlib.sha512).digest()
+    return hmac.compare_digest(result[SALT_SIZE:], hmac_hash[SALT_SIZE:])
+
+
 class User(common.Base, kw_only=True):
     id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, init=False, primary_key=True)
     key: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column(default=None, index=True)
@@ -63,18 +84,44 @@ class User(common.Base, kw_only=True):
     current_limited_effort_point: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(default=0)
 
     def set_passwd(self, passwd: str):
-        salt = util.randbytes(SALT_SIZE)
-        hmac_hash = hmac.new(salt, passwd.encode("UTF-8"), digestmod=hashlib.sha512).digest()
-        result = salt + hmac_hash[SALT_SIZE:]
-        self.passwd = str(base64.b64encode(result), "UTF-8")
+        self.passwd = _hash_passwd(passwd)
 
     def check_passwd(self, passwd: str):
-        if self.passwd is None:
-            return False
-        result = base64.b64decode(self.passwd)
-        salt = result[:SALT_SIZE]
-        hmac_hash = hmac.new(salt, passwd.encode("UTF-8"), digestmod=hashlib.sha512).digest()
-        return result[SALT_SIZE:] == hmac_hash[SALT_SIZE:]
+        return _check_passwd(self.passwd, passwd)
+
+
+class UserClientIdentity(common.Base, kw_only=True):
+    """One profile-specific login identity bound to a shared NPPS4 user.
+
+    Progress and social state remain on :class:`User`; only login credentials
+    and the external client identity are split between CN and GL.
+    """
+
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, init=False, primary_key=True)
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    profile: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(index=True)
+    login_key: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(index=True)
+    passwd: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column(default=None)
+    external_user_id: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column(default=None, index=True)
+    insert_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, index=True
+    )
+    update_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, onupdate=util.time, index=True
+    )
+
+    __table_args__ = (
+        sqlalchemy.UniqueConstraint(profile, login_key),
+        sqlalchemy.UniqueConstraint(user_id, profile),
+    )
+
+    def set_passwd(self, passwd: str):
+        self.passwd = _hash_passwd(passwd)
+
+    def check_passwd(self, passwd: str):
+        return _check_passwd(self.passwd, passwd)
 
 
 class FriendLink(common.Base, kw_only=True):
@@ -118,11 +165,33 @@ class Session(common.Base, kw_only=True):
     user_id: sqlalchemy.orm.Mapped[int | None] = sqlalchemy.orm.mapped_column(
         common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
     )
+    profile: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(default="gl", index=True)
+    server_rsa_label: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column(default=None)
     client_key: sqlalchemy.orm.Mapped[bytes] = sqlalchemy.orm.mapped_column()
     server_key: sqlalchemy.orm.Mapped[bytes] = sqlalchemy.orm.mapped_column()
     last_accessed: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         common.IDInteger, default_factory=util.time, index=True
     )
+
+
+class RandomLiveSession(common.Base, kw_only=True):
+    """Persistent random-live launch token.
+
+    Tokens are user/profile-bound and survive a service restart.  The payload is
+    stored as JSON text so the schema can evolve without another table change.
+    """
+
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, init=False, primary_key=True)
+    token: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(unique=True, index=True)
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    profile: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(index=True)
+    payload_json: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(default="{}")
+    created_at: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, index=True
+    )
+    expires_at: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, index=True)
 
 
 class RequestCache(common.Base, kw_only=True):
@@ -216,6 +285,81 @@ class UnitSupporter(common.Base, kw_only=True):
     __table_args__ = (sqlalchemy.UniqueConstraint(user_id, unit_id),)
 
 
+
+
+class UserCostume(common.Base, kw_only=True):
+    """A profile-specific costume appearance permanently registered by a user."""
+
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, init=False, primary_key=True
+    )
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    profile: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(index=True)
+    unit_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, index=True)
+    is_rank_max: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False)
+    is_signed: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False)
+    source_unit_owning_user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default=0, index=True
+    )
+    insert_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, index=True
+    )
+
+    __table_args__ = (
+        sqlalchemy.UniqueConstraint(user_id, profile, unit_id, is_signed),
+    )
+
+
+class UserCostumeDress(common.Base, kw_only=True):
+    """The costume currently assigned to one owned card in one client profile."""
+
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, init=False, primary_key=True
+    )
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    profile: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(index=True)
+    unit_owning_user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(Unit.id), index=True
+    )
+    costume_unit_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, index=True
+    )
+    is_rank_max: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False)
+    is_signed: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False)
+    insert_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, index=True
+    )
+    update_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, onupdate=util.time, index=True
+    )
+
+    __table_args__ = (
+        sqlalchemy.UniqueConstraint(user_id, profile, unit_owning_user_id),
+    )
+
+
+class UserCostumeSetting(common.Base, kw_only=True):
+    """Whether costume rendering is enabled for a user/profile."""
+
+    id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, init=False, primary_key=True
+    )
+    user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
+    )
+    profile: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(index=True)
+    enabled: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=True)
+    update_date: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
+        common.IDInteger, default_factory=util.time, onupdate=util.time, index=True
+    )
+
+    __table_args__ = (
+        sqlalchemy.UniqueConstraint(user_id, profile),
+    )
 
 
 class UserAccessory(common.Base, kw_only=True):
@@ -394,9 +538,10 @@ class MuseumUnlock(common.Base, kw_only=True):
     user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
     )
+    profile: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(index=True)
     museum_contents_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, index=True)
 
-    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, museum_contents_id),)
+    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, profile, museum_contents_id),)
 
 
 class RemovableSkillInfo(common.Base, kw_only=True):
@@ -589,6 +734,7 @@ class EventScenarioUnlock(common.Base, kw_only=True):
     user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
     )
+    profile: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(default="cn", index=True)
     event_scenario_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, index=True)
     completed: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False, index=True)
     is_new: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=True, index=True)
@@ -596,7 +742,7 @@ class EventScenarioUnlock(common.Base, kw_only=True):
         common.IDInteger, default_factory=util.time, index=True
     )
 
-    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, event_scenario_id),)
+    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, profile, event_scenario_id),)
 
 
 class MultiUnitScenarioUnlock(common.Base, kw_only=True):
@@ -606,6 +752,7 @@ class MultiUnitScenarioUnlock(common.Base, kw_only=True):
     user_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(
         common.IDInteger, sqlalchemy.ForeignKey(User.id), index=True
     )
+    profile: sqlalchemy.orm.Mapped[str] = sqlalchemy.orm.mapped_column(default="cn", index=True)
     multi_unit_scenario_id: sqlalchemy.orm.Mapped[int] = sqlalchemy.orm.mapped_column(common.IDInteger, index=True)
     completed: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=False, index=True)
     is_new: sqlalchemy.orm.Mapped[bool] = sqlalchemy.orm.mapped_column(default=True, index=True)
@@ -613,7 +760,7 @@ class MultiUnitScenarioUnlock(common.Base, kw_only=True):
         common.IDInteger, default_factory=util.time, index=True
     )
 
-    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, multi_unit_scenario_id),)
+    __table_args__ = (sqlalchemy.UniqueConstraint(user_id, profile, multi_unit_scenario_id),)
 
 
 class ContentAccessGrant(common.Base, kw_only=True):

@@ -12,6 +12,7 @@ from ..db import museum
 from ..db import scenario
 from ..db import subscenario
 from ..db import unit
+from .. import client_profile
 
 
 class Database:
@@ -27,9 +28,11 @@ class Database:
         "_museumsession",
         "_scenariosession",
         "_exchangesession",
+        "profile",
     )
 
-    def __init__(self) -> None:
+    def __init__(self, profile: client_profile.ClientProfile | str | None = None) -> None:
+        self.profile = client_profile.current() if profile is None else client_profile.ClientProfile.normalize(profile)
         self._mainsession: sqlalchemy.ext.asyncio.AsyncSession | None = None
         self._gmsession: sqlalchemy.ext.asyncio.AsyncSession | None = None
         self._itemsession: sqlalchemy.ext.asyncio.AsyncSession | None = None
@@ -52,70 +55,70 @@ class Database:
     @property
     def game_mater(self):
         if self._gmsession is None:
-            sessionmaker = game_mater.get_sessionmaker()
+            sessionmaker = game_mater.get_sessionmaker(self.profile)
             self._gmsession = sessionmaker()
         return self._gmsession
 
     @property
     def item(self):
         if self._itemsession is None:
-            sessionmaker = item.get_sessionmaker()
+            sessionmaker = item.get_sessionmaker(self.profile)
             self._itemsession = sessionmaker()
         return self._itemsession
 
     @property
     def live(self):
         if self._livesession is None:
-            sessionmaker = live.get_sessionmaker()
+            sessionmaker = live.get_sessionmaker(self.profile)
             self._livesession = sessionmaker()
         return self._livesession
 
     @property
     def unit(self):
         if self._unitsession is None:
-            sessionmaker = unit.get_sessionmaker()
+            sessionmaker = unit.get_sessionmaker(self.profile)
             self._unitsession = sessionmaker()
         return self._unitsession
 
     @property
     def achievement(self):
         if self._achievementsession is None:
-            sessionmaker = achievement.get_sessionmaker()
+            sessionmaker = achievement.get_sessionmaker(self.profile)
             self._achievementsession = sessionmaker()
         return self._achievementsession
 
     @property
     def effort(self):
         if self._effortsession is None:
-            sessionmaker = effort.get_sessionmaker()
+            sessionmaker = effort.get_sessionmaker(self.profile)
             self._effortsession = sessionmaker()
         return self._effortsession
 
     @property
     def subscenario(self):
         if self._subscenariosession is None:
-            sessionmaker = subscenario.get_sessionmaker()
+            sessionmaker = subscenario.get_sessionmaker(self.profile)
             self._subscenariosession = sessionmaker()
         return self._subscenariosession
 
     @property
     def museum(self):
         if self._museumsession is None:
-            sessionmaker = museum.get_sessionmaker()
+            sessionmaker = museum.get_sessionmaker(self.profile)
             self._museumsession = sessionmaker()
         return self._museumsession
 
     @property
     def scenario(self):
         if self._scenariosession is None:
-            sessionmaker = scenario.get_sessionmaker()
+            sessionmaker = scenario.get_sessionmaker(self.profile)
             self._scenariosession = sessionmaker()
         return self._scenariosession
 
     @property
     def exchange(self):
         if self._exchangesession is None:
-            sessionmaker = exchange.get_sessionmaker()
+            sessionmaker = exchange.get_sessionmaker(self.profile)
             self._exchangesession = sessionmaker()
         return self._exchangesession
 

@@ -1,62 +1,46 @@
-import os
+"""Deprecated process-global download backend compatibility shim.
 
-import fastapi
+NPPS4 v5 selects download/master sources through ``npps4.download.download``
+using the request/session ClientProfile.  This module is retained only for old
+operator scripts which imported the former backend module directly.
+"""
+from __future__ import annotations
 
-from . import dltype
-from .. import util
-from .. import idoltype
-from ..config import config
-
-
-def get_server_version():
-    return util.parse_sif_version(config.CONFIG_DATA.download.none.client_version)
-
-
-def get_db_path(name: str) -> str:
-    ver = get_server_version()
-    path = f"{config.get_data_directory()}/db/{ver[0]}.{ver[1]}/{name}.db_"
-    if os.path.isfile(path):
-        return path
-
-    path = f"{config.get_data_directory()}/db/{name}.db_"
-    if os.path.isfile(path):
-        return path
-
-    raise NotImplementedError(f"'none' backend does not automatically load databases! Unable to find '{path}'")
-
-
-async def get_update_files(
-    request: fastapi.Request, platform: idoltype.PlatformType, from_client_version: tuple[int, int]
-) -> list[dltype.UpdateInfo]:
-    raise NotImplementedError("not implemented get_update_files")
-
-
-async def get_batch_files(
-    request: fastapi.Request, platform: idoltype.PlatformType, package_type: int, exclude: list[int]
-) -> list[dltype.BatchInfo]:
-    raise NotImplementedError("not implemented get_batch_files")
-
-
-async def get_single_package(
-    request: fastapi.Request, platform: idoltype.PlatformType, package_type: int, package_id: int
-) -> list[dltype.BaseInfo] | None:
-    return None
-
-
-async def get_raw_files(request: fastapi.Request, platform: idoltype.PlatformType, files: list[str]):
-    target = str(request.url)
-    target = (target + "missing") if target[-1] == "/" else (target + "/missing")
-    return [
-        dltype.BaseInfo(
-            url=target,
-            size=0,
-            checksums=dltype.Checksum(
-                md5="d41d8cd98f00b204e9800998ecf8427e",
-                sha256="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            ),
-        )
-    ] * len(files)
+from . import download as _registry
 
 
 def initialize():
-    pass
+    # Backends are initialized once by the profile registry.
+    return None
+
+
+def get_server_version():
+    return _registry.get_server_version()
+
+
+def get_server_version_string():
+    return _registry.get_server_version_string()
+
+
+def get_db_path(name: str):
+    return _registry.get_db_path(name)
+
+
+async def get_update_files(request, platform, from_client_version):
+    return await _registry.get_update_files(request, platform, from_client_version)
+
+
+async def get_update_files_raw(request, platform, install_version, external_version):
+    return await _registry.get_update_files_raw(request, platform, install_version, external_version)
+
+
+async def get_batch_files(request, platform, package_type, exclude):
+    return await _registry.get_batch_files(request, platform, package_type, exclude)
+
+
+async def get_single_package(request, platform, package_type, package_id):
+    return await _registry.get_single_package(request, platform, package_type, package_id)
+
+
+async def get_raw_files(request, platform, files):
+    return await _registry.get_raw_files(request, platform, files)

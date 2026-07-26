@@ -18,6 +18,7 @@ from ..system import item
 from ..system import live
 from ..system import live_model
 from ..system import museum
+from ..system import profile_projection
 from ..system import ranking
 from ..system import reward
 from ..system import scenario
@@ -419,10 +420,22 @@ async def live_partylist(context: idol.SchoolIdolUserParams, request: LivePartyL
     if beatmap_data is None:
         raise idol.error.by_code(idol.error.ERROR_CODE_LIVE_NOTES_LIST_NOT_FOUND)
 
-    party_list = [
-        await advanced.get_user_guest_party_info(context, u)
-        for u in await advanced.get_random_user_for_partylist(context, current_user)
-    ]
+    party_list = []
+    for candidate in await advanced.get_random_user_for_partylist(context, current_user):
+        try:
+            party_list.append(
+                await advanced.get_user_guest_party_info(context, candidate, current_user)
+            )
+        except ValueError:
+            # Region-exclusive or corrupt center units are omitted instead of
+            # leaking invalid Master IDs to the receiving client.
+            continue
+
+    if not party_list:
+        # Never serialize an empty/invalid guest entry. The normal current-user
+        # candidate makes this exceptional, but a game error is safer than a
+        # Lua crash if a migrated account contains no card usable by this client.
+        raise idol.error.IdolError(idol.error.ERROR_CODE_LIVE_INVALID_PARTY_USER)
 
     # DEBUG live score
     if DEBUG_SERVER_SCORE_CALCULATE:
@@ -552,9 +565,10 @@ async def live_play(context: idol.SchoolIdolUserParams, request: LivePlayRequest
     if guest is None:
         raise idol.error.IdolError(idol.error.ERROR_CODE_LIVE_INVALID_PARTY_USER)
 
-    guest_center_unit_owning_user_id = await unit.get_unit_center(context, guest, True)
-    if guest_center_unit_owning_user_id == 0:
+    guest_projection = await profile_projection.live_guest_center_unit(context, guest)
+    if guest_projection is None:
         raise idol.error.IdolError(idol.error.ERROR_CODE_LIVE_INVALID_PARTY_USER)
+    guest_center_unit = guest_projection[0]
 
     calculator = advanced.TeamStatCalculator(context)
     museum_data = await museum.get_museum_info_data(context, current_user)
@@ -562,7 +576,7 @@ async def live_play(context: idol.SchoolIdolUserParams, request: LivePlayRequest
     stats = await calculator.get_live_stats(
         request.unit_deck_id,
         deck_units,
-        await unit.get_unit(context, guest_center_unit_owning_user_id),
+        guest_center_unit,
         museum_data.parameter,
     )
 

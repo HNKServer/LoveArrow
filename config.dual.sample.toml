@@ -1,0 +1,76 @@
+# Canonical v5.05 Android-style dual Profile example.
+[main]
+data_directory = "data"
+secret_key = "Change this secret"
+server_private_key = "default_server_key.pem"
+server_private_key_password = ""
+server_data = "npps4/server_data.json"
+session_expiry = 259200
+
+[database]
+url = "sqlite+aiosqlite:///data/main.sqlite3"
+
+[download]
+backend = ""
+default_profile = "cn"
+
+[download.profiles.cn]
+museum_unlock_policy = "all" # normal | all; native catalogue only
+enabled = true
+backend = "cn_archive"
+send_patched_server_info = true
+
+[download.profiles.cn.cn_archive]
+android_archives = "list_CN_Android"
+db_root = "data/db_cn_honoka"
+application_version = "9.7.1"
+client_version = "97.4.6"
+server_info_override = "99_0_115.zip"
+android_server_info_override = "cn_server_info_99_0_115.zip"
+
+[download.profiles.gl]
+museum_unlock_policy = "all" # normal | all; native catalogue only
+enabled = true
+backend = "n4dlapi"
+send_patched_server_info = true
+
+[download.profiles.gl.n4dlapi]
+server = "https://ll.sif.moe/npps4_dlapi"
+shared_key = ""
+
+[download.profiles.gl.internal]
+archive_root = "archive-root-gl"
+
+[game]
+badwords = "external/badwords.py"
+login_bonus = "external/login_bonus.py"
+beatmaps = "external/beatmap.py"
+live_unit_drop = "external/live_unit_drop.py"
+live_box_drop = "external/live_box_drop.py"
+
+[advanced]
+base_xorpad = "eit4Ahph4aiX4ohmephuobei6SooX9xo"
+application_key = "b6e6c940a93af2357ea3e0ace0b98afc"
+consumer_key = "lovelive_test"
+verify_xmc = true
+
+[compat]
+region = "dual"
+cn_main_headers = true
+cn_autocreate_ghome_users = true
+cn_wrappers = true
+cn_optional_stubs = false
+daily_rotation_timezone = "auto"
+live_continue_loveca_cost = 1
+
+[iex]
+enable_export = true
+enable_import = true
+bypass_signature = false
+
+[gameplay]
+energy_multiplier = 1
+love_multiplier = 1
+secretbox_cost_multiplier = 1
+# Keep Museum/Album unlocks viewable without permanent team-stat bonuses.
+museum_stat_bonus_enabled = false

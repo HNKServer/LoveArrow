@@ -6,6 +6,8 @@ Player progression is stored only in NPPS4's main database.
 
 from __future__ import annotations
 
+from contextlib import closing
+
 import dataclasses
 import functools
 import sqlite3
@@ -51,7 +53,7 @@ def _as_int(value, default: int = 0) -> int:
 @functools.lru_cache(maxsize=1)
 def event_scenarios() -> tuple[EventScenarioMaster, ...]:
     path = cn_honoka_master.bundled_cn_client_master_db()
-    with sqlite3.connect(path) as db:
+    with closing(sqlite3.connect(path)) as db:
         rows = db.execute(
             """
             SELECT event_scenario_id, event_id, chapter, chapter_asset, title, title_en, open_date,
@@ -83,7 +85,7 @@ def event_scenarios() -> tuple[EventScenarioMaster, ...]:
 @functools.lru_cache(maxsize=1)
 def multi_unit_scenarios() -> tuple[MultiUnitScenarioMaster, ...]:
     path = cn_honoka_master.bundled_cn_client_master_db()
-    with sqlite3.connect(path) as db:
+    with closing(sqlite3.connect(path)) as db:
         rows = db.execute(
             """
             SELECT s.multi_unit_scenario_id, s.multi_unit_id, s.chapter, s.chapter_asset,

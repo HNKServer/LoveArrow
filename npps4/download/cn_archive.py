@@ -41,6 +41,7 @@ import fastapi.responses
 
 from . import dltype
 from . import gl_overlay
+from .. import client_profile
 from .. import idoltype
 from .. import util
 from ..app import app
@@ -253,7 +254,7 @@ async def _materialize_cn_raw(platform: idoltype.PlatformType, path: str):
     return await asyncio.to_thread(_materialize_cn_raw_sync, platform, path)
 
 
-_config = config.CONFIG_DATA.download.cn_archive
+_config = config.get_profile_download(client_profile.ClientProfile.CN).cn_archive
 
 
 def _abs_optional(path: str) -> str:

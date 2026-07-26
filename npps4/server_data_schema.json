@@ -559,6 +559,34 @@
 					},
 					"title": "Rarity Pools",
 					"type": "array"
+				},
+				"profiles": {
+					"anyOf": [
+						{
+							"items": {
+								"enum": [
+									"cn",
+									"gl"
+								],
+								"type": "string"
+							},
+							"type": "array"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Profiles"
+				},
+				"pool_mode": {
+					"default": "configured",
+					"enum": [
+						"configured",
+						"thanks_festival"
+					],
+					"title": "Pool Mode",
+					"type": "string"
 				}
 			},
 			"required": [
@@ -812,6 +840,37 @@
 					"default": null,
 					"title": "Name En"
 				},
+				"name_cn": {
+					"anyOf": [
+						{
+							"type": "string"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Name Cn"
+				},
+				"profiles": {
+					"anyOf": [
+						{
+							"items": {
+								"enum": [
+									"cn",
+									"gl"
+								],
+								"type": "string"
+							},
+							"type": "array"
+						},
+						{
+							"type": "null"
+						}
+					],
+					"default": null,
+					"title": "Profiles"
+				},
 				"costs": {
 					"items": {
 						"$ref": "#/$defs/ExchangeCost"
@@ -903,17 +962,6 @@
 			"type": "array"
 		}
 	},
-	"required": [
-		"badwords",
-		"achievement_reward",
-		"live_unit_drop_chance",
-		"common_live_unit_drops",
-		"live_specific_live_unit_drops",
-		"live_effort_drops",
-		"secretbox_data",
-		"serial_codes",
-		"sticker_shop"
-	],
 	"title": "SerializedServerData",
 	"type": "object",
 	"$schema": "https://json-schema.org/draft/2020-12/schema"

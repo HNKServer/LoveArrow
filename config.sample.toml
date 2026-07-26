@@ -76,126 +76,90 @@ save_notes_list = false
 url = "sqlite+aiosqlite:///data/main.sqlite3"
 
 [download]
-# This is in-game-download-related configuration.
-# Client requires client files to function.
-# Server requires client database to function too.
+# CN and GL are independent client profiles.  JP and EN after the 2021 merge
+# use the same GL profile.  `default_profile` is used only for the few requests
+# which arrive before the client/session can be identified.
+#
+# Each profile may use:
+#   none       - no downloads; local master DBs must already exist
+#   n4dlapi    - online NPPS4-DLAPI/CDN
+#   internal   - local NPPS4-DLAPI archive-root mirror
+#   cn_archive - CN flat ZIP directory (CN only)
+#   custom     - custom provider
+backend = "" # legacy single-profile field; keep blank in dual-profile configs
+default_profile = "cn"
 
-# Which download backend to use? Available backends are:
-# "none" - None. Any `/download/` endpoint request will result in error.
-#          You MUST provide the server the database file it needs in
-#          `<data directory>/db` folder, otherwise the server will refuse to
-#          start!
-# "n4dlapi" - NPPS4 Download API (recommended). This is the recommended
-#             backend with standarized API. A reference implementation to
-#             host your own NPPS4 Download API is available at here:
-#             https://github.com/DarkEnergyProcessor/NPPS4-DLAPI
-#             Currently, NPPS4 requires NPPS4 Download API server that
-#             implements version 1 of the protocol.
-# "internal" - Locally mirrored game data according to folder structure
-#              written in https://github.com/DarkEnergyProcessor/NPPS4-DLAPI.
-# "custom" - Use custom Python script to provide downloader.
-#            Please see "external/custom_downloader.py" on how to implement
-#            your own download backend provider.
-# Environment Variable: NPPS4_CONFIG_DOWNLOAD_BACKEND
-backend = "none"
-
-# Send patched server_info.json automatically?
-# This requires honky-py (installed as part of NPPS4 requirements). There's no
-# reason to turn this off unless your download API or archive already provides
-# patched server_info.json.
-# Environment Variable: NPPS4_CONFIG_DOWNLOAD_FIXSERVERINFO
+[download.profiles.cn]
+museum_unlock_policy = "all" # normal | all; native catalogue only
+enabled = true
+backend = "cn_archive"
 send_patched_server_info = true
 
-[download.none]
-# What's the latest client version?
-# Environment Variable: NPPS4_CONFIG_DOWNLOAD_NONE_VERSION
-client_version = "59.4"
-
-[download.n4dlapi]
-# NPPS4 Download API protocol is an RESTful-based HTTP protocol on how to
-# retrieve SIF-related files.
-# More information can be found in here:
-# https://github.com/DarkEnergyProcessor/NPPS4-DLAPI
-
-# Where's the NPPS4 Download API is hosted?
-# This option accepts URL path without trailing slashes. For example, if your
-# NPPS4 Download API server is hosted through `http://example.com/n4dlapi` and
-# such that `http://example.com/n4dlapi/api/publicinfo` gives public
-# information about the NPPS4 Download API server, then specify
-# "http://example.com/n4dlapi"
-# Note: Make sure it's allowed to access internet if NPPS4 is behind container.
-# Environment Variable: NPPS4_CONFIG_DOWNLOAD_N4DLAPI_SERVER
-server = "https://localhost:8000"
-
-# What's the Shared Key used to communicate with the NPPS4 Download API
-# server?
-# If your NPPS4 Download API server is public, then specify empty string.
-# Environment Variable: NPPS4_CONFIG_DOWNLOAD_N4DLAPI_KEY
-shared_key = ""
-
-[download.internal]
-# Where's the "archive-root" directory is stored?
-# Path is relative to the project root directory.
-# Note: When NPPS4 is run behind container, extra care must be taken such that
-# the directory is accessible inside the container.
-# Environment Variable: NPPS4_CONFIG_DOWNLOAD_INTERNAL_ROOT
-archive_root = "archive-root"
-
-
-# CN flat archives backend. Use this when you want to serve the raw CN archive
-# directory directly, e.g. list_CN_Android/0_0_1.zip, instead of converting it
-# to NPPS4-DLAPI's archive-root layout.
-[download.cn_archive]
-# Path to CN Android ZIP archives, usually the list_CN_Android directory.
-android_archives = "list_CN_Android"
-
-# Path to CN iOS ZIP archives, if available. Leave empty to disable iOS.
-ios_archives = ""
-
-# Optional extracted asset roots used by /download/getUrl. Leave empty if you do
-# not have extracted resources yet.
-android_extracted = ""
-ios_extracted = ""
-
-# Directory containing game_mater.db_, unit.db_, live.db_, etc. If empty, NPPS4
-# falls back to data/db.
-db_root = "data/db"
-
-# CN APK version used for UI/Lua capability gates.
-application_version = "9.7.1"
-# CN archive/content version reported in Server-Version and download/update.
+[download.profiles.cn.none]
 client_version = "97.4.6"
 
-# honoka-chan/CN update package behavior.
+[download.profiles.cn.n4dlapi]
+# Fill this with a CN-compatible DLAPI when CN uses its online source.
+server = ""
+shared_key = ""
+
+[download.profiles.cn.internal]
+archive_root = "archive-root-cn"
+
+[download.profiles.cn.cn_archive]
+android_archives = "list_CN_Android"
+ios_archives = ""
+android_extracted = ""
+ios_extracted = ""
+db_root = "data/db_cn_honoka"
+application_version = "9.7.1"
+client_version = "97.4.6"
 update_package_type = 99
 server_info_override = "99_0_115.zip"
-
-# Fetch only missing extracted assets from the public GL mirror and cache them locally.
-# This does not replace the CN 97.4.6 update/package backend.
+android_server_info_override = "cn_server_info_99_0_115.zip"
+ios_server_info_override = ""
 gl_overlay_enabled = true
 gl_overlay_server = "https://ll.sif.moe/npps4_dlapi"
+gl_overlay_shared_key = ""
 gl_overlay_cache = ""
 gl_overlay_timeout = 30
 gl_overlay_try_language_fallback = true
 gl_overlay_negative_ttl = 300
-
-# Generated CN Museum master overlay and route-audit access policies.
 android_extra_update_packages = []
 ios_extra_update_packages = []
 archive_access_manifest = "data/cn_update_overlays/archive_access_manifest.json"
-# normal = ordinary progression; all = unlock every native CN Museum item (16).
-museum_unlock_policy = "all"
+# This controls only the native 16-item CN Museum catalogue.
 main_scenario_unlock_policy = "normal" # normal | archive | all
 subscenario_unlock_policy = "normal"   # normal | archive | all
 live_unlock_policy = "normal"          # normal | archive | all
 album_catalog_unlock_policy = "normal" # normal | archive | all | complete
 
-[download.custom]
-# Specify custom download provider script.
-# Path is relative to the project root directory.
-# Note: The file path is not configurable in Android.
-# Environment Variable: NPPS4_CONFIG_DOWNLOAD_CUSTOM_FILE
+[download.profiles.cn.custom]
 file = "external/custom_downloader.py"
+
+[download.profiles.gl]
+museum_unlock_policy = "all" # normal | all; native catalogue only
+enabled = true
+backend = "n4dlapi"
+send_patched_server_info = true
+
+[download.profiles.gl.none]
+client_version = "59.4"
+
+[download.profiles.gl.n4dlapi]
+server = "https://ll.sif.moe/npps4_dlapi"
+shared_key = ""
+
+[download.profiles.gl.internal]
+# Local mirror generated in NPPS4-DLAPI archive-root layout.
+archive_root = "archive-root-gl"
+
+[download.profiles.gl.custom]
+file = "external/custom_downloader.py"
+
+# CN and GL can be enabled/disabled and switched between local/online sources
+# independently. Examples: CN local + GL local, CN local + GL online,
+# CN online + GL local, or CN online + GL online.
 
 [game]
 # Game-specific configuration
@@ -251,6 +215,8 @@ love_multiplier = 1
 # That check is client-side, meaning it's done in the game itself.
 # Environment Variable: NPPS4_CONFIG_GAMEPLAY_GACHACOSTMUL
 secretbox_cost_multiplier = 1
+# Keep Museum/Album unlocks viewable without permanent team-stat bonuses.
+museum_stat_bonus_enabled = false
 
 [iex]
 # This is account import/export setting.
@@ -274,9 +240,9 @@ bypass_signature = false
 
 
 [compat]
-# Set to "cn" to enable the CN GHome/Shengqu bridge and CN archive backend helpers.
-# Keep "global" for ordinary JP/Global clients.
-region = "global"
+# Deprecated v4.x process-global selector.  CN/GL are now selected per request
+# and Session; keep this as "dual" for readability and old-tool compatibility.
+region = "dual"
 
 # Extra honoka-style headers on /main.php responses. Usually not needed because
 # NPPS4 already sends the headers SIF expects; leave this off unless logs show

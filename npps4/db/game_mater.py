@@ -1,9 +1,14 @@
+import collections.abc
+import functools
+
 import sqlalchemy
 import sqlalchemy.ext.asyncio
 import sqlalchemy.orm
 import sqlalchemy.pool
 
 from . import common
+from . import master_registry
+from .. import client_profile
 from ..download import download
 
 
@@ -182,41 +187,68 @@ class Strings(common.GameDBBase):
     string_label_en: sqlalchemy.orm.Mapped[str | None] = sqlalchemy.orm.mapped_column()
 
 
-game_mater = download.get_db_path("game_mater")
 
-
-def load_client_setting():
-    sync_engine = sqlalchemy.create_engine(f"sqlite+pysqlite:///file:{game_mater}?mode=ro&uri=true")
+@functools.lru_cache(maxsize=2)
+def load_client_setting(profile: client_profile.ClientProfile | str | None = None):
+    normalized = client_profile.current() if profile is None else client_profile.ClientProfile.normalize(profile)
+    path = download.get_db_path("game_mater", normalized)
+    sync_engine = sqlalchemy.create_engine(f"sqlite+pysqlite:///file:{path}?mode=ro&uri=true")
     sync_sessionmaker = sqlalchemy.orm.sessionmaker(sync_engine)
-    with sync_sessionmaker() as session:
-        # Preload game_setting_m
-        q = sqlalchemy.select(GameSetting).limit(1)
-        result = session.execute(q)
-        setting = result.scalar()
-        if setting is None:
-            raise RuntimeError("unable to load client setting")
-
-        session.expunge(setting)
-
-        # Preload strings_m
-        q = sqlalchemy.select(Strings)
-        result = list(session.execute(q).scalars())
-        for r in result:
-            session.expunge(r)
-
-        return setting, dict(((r.string_key, r.string_value), (r.string_label, r.string_label_en)) for r in result)
-
-
-GAME_SETTING, STRINGS = load_client_setting()
-
-engine = sqlalchemy.ext.asyncio.create_async_engine(
-    f"sqlite+aiosqlite:///file:{game_mater}?mode=ro&uri=true",
-    poolclass=sqlalchemy.pool.NullPool,
-    connect_args={"check_same_thread": False},
-)
-sessionmaker = sqlalchemy.ext.asyncio.async_sessionmaker(engine)
+    try:
+        with sync_sessionmaker() as session:
+            setting = session.execute(sqlalchemy.select(GameSetting).limit(1)).scalar()
+            if setting is None:
+                raise RuntimeError(f"unable to load {normalized.value} client setting")
+            session.expunge(setting)
+            rows = list(session.execute(sqlalchemy.select(Strings)).scalars())
+            for row in rows:
+                session.expunge(row)
+            strings = {
+                (row.string_key, row.string_value): (row.string_label, row.string_label_en)
+                for row in rows
+            }
+            return setting, strings
+    finally:
+        sync_engine.dispose()
 
 
-def get_sessionmaker():
-    global sessionmaker
-    return sessionmaker
+def get_game_setting(profile: client_profile.ClientProfile | str | None = None):
+    return load_client_setting(profile)[0]
+
+
+def get_strings(profile: client_profile.ClientProfile | str | None = None):
+    return load_client_setting(profile)[1]
+
+
+class _GameSettingProxy:
+    def __getattr__(self, name: str):
+        return getattr(get_game_setting(), name)
+
+    def __repr__(self):
+        return repr(get_game_setting())
+
+
+class _StringsProxy(collections.abc.Mapping):
+    def _current(self):
+        return get_strings()
+
+    def __getitem__(self, key):
+        return self._current()[key]
+
+    def __iter__(self):
+        return iter(self._current())
+
+    def __len__(self):
+        return len(self._current())
+
+    def get(self, key, default=None):
+        return self._current().get(key, default)
+
+
+GAME_SETTING = _GameSettingProxy()
+STRINGS = _StringsProxy()
+
+
+def get_sessionmaker(profile: client_profile.ClientProfile | str | None = None):
+    return master_registry.get_sessionmaker("game_mater", profile)
+

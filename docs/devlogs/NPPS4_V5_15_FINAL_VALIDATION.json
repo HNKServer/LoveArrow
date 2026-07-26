@@ -1,0 +1,237 @@
+{
+  "package": "NPPS4-PC-v5_15-friend-costume-cross-profile-fallback-source",
+  "passed": 46,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "all embedded Python files parse",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "build id is v5.15 social fallback fix",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "policy forbids wardrobe preload",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "policy forbids process-global per-user cache",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "policy forbids synthetic card ownership",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "social lookup is targeted to one owned-card id",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "receiver profile binding is queried first",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "other-profile binding is fallback-only",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "source-profile registration is validated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "receiver Master support is validated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "signed receiver asset is validated",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "social projection ignores target local display toggle",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no wardrobe-table preload helper was added",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no context/global costume cache decorator",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "owned unit supports explicit social projection",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "social base projection uses native fallback",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "main-deck center is preferred before navigation partner",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "social appearance comes from navigation partner",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "unsupported owned cards are skipped, never invented",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Live guest validates leader-skill support",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "partyList and live/play share one guest selector",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "partyList rejects an empty unsafe payload",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "friend uses social costume projection",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "profile uses social costume projection",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ranking uses social costume projection",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "greeting uses social costume projection",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Live party uses social costume projection",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "profile center receives partner display costume",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "profile navigation row also receives safe partner display costume",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "friend list omits unrepresentable rows instead of null center",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "friend search fails safely for no representable card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "profile fails safely for no representable card",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "optional costume serializer still removes JSON null",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ordinary owned-card override still respects local toggle",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "ordinary absent binding still returns None",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "single-use wardrobe guard remains in dressUp",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no wardrobe removal API invented",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "wire format omits absent costume key",
+      "ok": true,
+      "detail": "{\"unit_owning_user_id\": 1, \"unit_rarity_id\": null, \"exp\": 0, \"next_exp\": 1, \"level\": 1, \"level_limit_id\": 1, \"max_level\": 80, \"rank\": 1, \"max_rank\": 2, \"love\": 0, \"max_love\": 100, \"unit_skill_level\": 1, \"max_hp\": 3, \"favorite_flag\": false, "
+    },
+    {
+      "name": "wire format preserves real costume object",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "unrelated None fields retain v5.12 behavior",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dynamic: receiver-profile dress wins",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dynamic: unsupported receiver dress falls to other profile",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dynamic: unsupported signed asset falls to native",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dynamic: unsupported native card is omitted",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dynamic: social center displays navigation-partner appearance",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dynamic: Live skips invalid unique center and picks next safe card",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

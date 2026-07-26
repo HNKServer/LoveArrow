@@ -4,6 +4,7 @@ from .. import const
 from .. import idol
 from .. import util
 from ..system import common
+from ..system import unit_model
 
 from typing import Any
 
@@ -65,9 +66,12 @@ async def notice_noticefriendvariety(
 # system.greet.UserGreet, not optional no-op stubs.  They intentionally reuse
 # NPPS4's User/Unit state so CN and global clients share the same social layer.
 from ..system import greet as greet_system
+from ..system import accessory as accessory_system
+from ..system import profile_projection
 from ..system import unit as unit_system
 from ..system import user as user_system
 from ..db import main as main_db
+import sqlalchemy
 
 
 class GreetingNoticeRequest(pydantic.BaseModel):
@@ -94,7 +98,7 @@ class GreetingAccessoryInfo(pydantic.BaseModel):
     favorite_flag: bool = False
 
 
-class GreetingCenterUnitInfo(pydantic.BaseModel):
+class GreetingCenterUnitInfo(unit_model.OptionalCostumeModel):
     unit_owning_user_id: int = 0
     unit_id: int = 0
     exp: int = 0
@@ -124,6 +128,7 @@ class GreetingCenterUnitInfo(pydantic.BaseModel):
     setting_award_id: int = 0
     removable_skill_ids: list[int] = pydantic.Field(default_factory=list)
     accessory_info: GreetingAccessoryInfo | None = None
+    costume: unit_model.CostumeInfo | None = None
 
 
 class GreetingPeer(pydantic.BaseModel):
@@ -167,14 +172,39 @@ class UserGreetingHistoryResponse(common.TimestampMixin):
 
 
 async def _greeting_center_unit_info(context: idol.BasicSchoolIdolContext, target: main_db.User) -> GreetingCenterUnitInfo:
-    base = GreetingCenterUnitInfo(setting_award_id=target.active_award)
-    if target.center_unit_owning_user_id == 0:
+    setting_award_id = await profile_projection.award_id(context, target.active_award)
+    base = GreetingCenterUnitInfo(setting_award_id=setting_award_id)
+    projected = await profile_projection.center_unit(context, target)
+    if projected is None:
         return base
-    unit_data = await unit_system.get_unit(context, target.center_unit_owning_user_id)
-    unit_info = await unit_system.get_unit_info(context, unit_data.unit_id)
-    if unit_info is None:
-        return base
-    full, stats = await unit_system.get_unit_data_full_info(context, unit_data)
+    unit_data, unit_info, full, stats = projected
+    removable_skill_ids = await profile_projection.filter_removable_skills(
+        context, await unit_system.get_unit_removable_skills(context, unit_data)
+    )
+    display_costume = await profile_projection.social_costume(
+        context, target, projected
+    )
+
+    accessory_info = None
+    q = (
+        sqlalchemy.select(main_db.UserAccessory)
+        .join(
+            main_db.UserAccessoryWear,
+            main_db.UserAccessoryWear.accessory_owning_user_id == main_db.UserAccessory.id,
+        )
+        .where(
+            main_db.UserAccessoryWear.user_id == target.id,
+            main_db.UserAccessoryWear.unit_owning_user_id == unit_data.id,
+        )
+        .limit(1)
+    )
+    owned_accessory = (await context.db.main.execute(q)).scalar()
+    if owned_accessory is not None and await profile_projection.accessory_supported(
+        context, owned_accessory.accessory_id
+    ):
+        api_info = await accessory_system.to_api_info(context, owned_accessory)
+        accessory_info = GreetingAccessoryInfo(**api_info.model_dump())
+
     return GreetingCenterUnitInfo(
         unit_owning_user_id=full.unit_owning_user_id,
         unit_id=full.unit_id,
@@ -202,21 +232,21 @@ async def _greeting_center_unit_info(context: idol.BasicSchoolIdolContext, targe
         is_rank_max=full.is_rank_max,
         is_signed=full.is_signed,
         is_skill_level_max=full.is_skill_level_max,
-        setting_award_id=target.active_award,
-        removable_skill_ids=await unit_system.get_unit_removable_skills(context, unit_data),
-        accessory_info=None,
+        setting_award_id=setting_award_id,
+        removable_skill_ids=removable_skill_ids,
+        accessory_info=accessory_info,
+        costume=display_costume,
     )
-
 
 async def _greeting_peer(context: idol.BasicSchoolIdolContext, user_id: int) -> GreetingPeer:
     target = await user_system.get(context, user_id)
     if target is None:
         raise idol.error.by_code(idol.error.ERROR_CODE_FRIEND_USER_NOT_EXISTS)
-    display_user_id = int(target.invite_code) if target.invite_code.isdigit() else target.id
+    setting_award_id = await profile_projection.award_id(context, target.active_award)
     return GreetingPeer(
-        user_data=GreetingUserData(user_id=display_user_id, name=target.name, level=target.level),
+        user_data=GreetingUserData(user_id=target.id, name=target.name, level=target.level),
         center_unit_info=await _greeting_center_unit_info(context, target),
-        setting_award_id=target.active_award,
+        setting_award_id=setting_award_id,
     )
 
 

@@ -1,0 +1,478 @@
+{
+  "version": "v5.05-museum-profile-ranking-fix",
+  "generated_at": "2026-07-22",
+  "assertion_suites": {
+    "v5.05_targeted": {
+      "passed": 40,
+      "failed": 0,
+      "checks": [
+        {
+          "name": "Museum policy is request-profile scoped",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "CN/GL profile configs default Museum all",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Museum normal state is profile isolated",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Museum queries bind context profile",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "No process-global CN-only all-unlock gate",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Representative-card inventory fallback exists",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Profile center and partner both use representative fallback",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Ranking current-position query no longer throws USER_NOT_EXIST",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Ranking empty/unranked rank is numeric zero",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Ranking has live and daily rank helpers",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Ranking tie order is deterministic",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "config.sample.toml enables both profile Museum defaults",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "config.dual.sample.toml enables both profile Museum defaults",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "config.cn-local.sample.toml enables both profile Museum defaults",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "config.gl-online.sample.toml enables both profile Museum defaults",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "LLSIF@Home GL Museum static catalogue has 1360 entries",
+          "passed": true,
+          "detail": "1360"
+        },
+        {
+          "name": "LLSIF@Home Ranking is a success-shaped empty response",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "honoka-chan exposes all native Museum rows",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "honoka CN native Museum catalogue has 16 entries",
+          "passed": true,
+          "detail": "16"
+        },
+        {
+          "name": "Upstream NPPS4 Museum normal state is sparse/test-gated",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Upstream has no ordinary-action Museum hook beyond generic reward/import",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "Legacy nested CN normal policy is preserved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Missing GL policy migrates to all",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Deprecated nested Museum key is removed",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "Museum all policy exposes only sorted active native rows",
+          "passed": true,
+          "detail": "[1, 3]"
+        },
+        {
+          "name": "Museum all policy sums native parameter buffs",
+          "passed": true,
+          "detail": "{'smile': 5, 'pure': 7, 'cool': 9}"
+        },
+        {
+          "name": "Exclusive preferred card falls back to supported inventory card",
+          "passed": true,
+          "detail": "(namespace(id=20, user_id=2, unit_id=1), 'info', 'full', 'stats')"
+        },
+        {
+          "name": "ranking/player id>0 returns success-shaped empty data",
+          "passed": true,
+          "detail": "{'page': 0, 'rank': 0, 'items': [], 'total_cnt': 0, 'present_cnt': 0}"
+        },
+        {
+          "name": "ranking/live returns success-shaped empty data",
+          "passed": true,
+          "detail": "{'page': 0, 'rank': 0, 'items': [], 'total_cnt': 0, 'present_cnt': 0}"
+        },
+        {
+          "name": "Android schema adds Museum profile column",
+          "passed": true,
+          "detail": "['id', 'user_id', 'profile', 'museum_contents_id']"
+        },
+        {
+          "name": "Android schema preserves legacy shared Museum rows for both profiles",
+          "passed": true,
+          "detail": "[(1, 'cn', 77), (1, 'gl', 77)]"
+        },
+        {
+          "name": "Android schema installs profile-scoped unique key",
+          "passed": true,
+          "detail": "[('user_id', 'profile', 'museum_contents_id')]"
+        },
+        {
+          "name": "Alembic SQLite upgrade preserves legacy shared Museum rows for CN and GL",
+          "passed": true,
+          "detail": "[(1, 'cn', 77), (1, 'gl', 77)]"
+        },
+        {
+          "name": "Alembic SQLite upgrade installs profile-scoped unique key",
+          "passed": true,
+          "detail": "[('user_id', 'profile', 'museum_contents_id')]"
+        },
+        {
+          "name": "Android Alembic payload contains all 28 migration files",
+          "passed": true,
+          "detail": "28"
+        },
+        {
+          "name": "Android Alembic payload embeds latest dual-profile Museum migration",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "v5.05 build ID present",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Android versionCode 505",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Android versionName 0.5.5",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Android/PC Python trees match",
+          "passed": true,
+          "detail": "left=2315 right=2315"
+        }
+      ]
+    },
+    "v5.04_regression": {
+      "passed": 47,
+      "failed": 0,
+      "checks": [
+        {
+          "name": "9.7 application version is not guessed as GL",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "9.11 application version remains default/ambiguous",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "97.x content header still identifies CN",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "59.x content header still identifies GL",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "GHome path identifies CN",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "config fingerprints shipped RSA keys",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "honoka key maps to CN",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "NPPS4 default key maps to GL",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "custom RSA keys remain unguessed",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "wrapper primary key is the GL/NPPS4 key",
+          "passed": true,
+          "detail": "7ca81f4b98d400534546e08eb8f5465b359fbfa233316b1db81b721a2fdee9fc"
+        },
+        {
+          "name": "CN/honoka key is a distinct key domain",
+          "passed": true,
+          "detail": "5373be407289643ebffaf604bfccce42dc5d6a38e84b4bf6297ecf72ac81d05d"
+        },
+        {
+          "name": "honoka_server_key resolves CN before token creation",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "honoka_server_key token records CN profile",
+          "passed": true,
+          "detail": "('honoka_server_key', 'cn')"
+        },
+        {
+          "name": "honoka_server_key authkey response returns resolved token",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "primary resolves GL before token creation",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "primary token records GL profile",
+          "passed": true,
+          "detail": "('primary', 'gl')"
+        },
+        {
+          "name": "primary authkey response returns resolved token",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "signed session profile overrides temporary header/default",
+          "passed": true,
+          "detail": "[<Profile.GL: 'gl'>]"
+        },
+        {
+          "name": "session RSA label is restored",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "CN response emits profile Server-Version",
+          "passed": true,
+          "detail": "{'server-version': '97.4.6', 'x-message-sign': 'sig', 'status_code': '200', 'content-type': 'application/json; charset=utf-8', 'x-powered-by': 'KLab Native APP Platform', 'server_version': '20120129', 'version_up': '0', 'user_id': '', 'authorize': 'consumerKey=lovelive_test&timeStamp=123&version=1.1&token=&nonce=1&user_id=&requestTimeStamp=123', 'content-length': '93'}"
+        },
+        {
+          "name": "CN response emits profile release keys",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "GL response emits profile Server-Version",
+          "passed": true,
+          "detail": "{'server-version': '59.4', 'x-message-sign': 'sig', 'status_code': '200', 'content-length': '93', 'content-type': 'application/json'}"
+        },
+        {
+          "name": "GL response emits profile release keys",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "response version calls carry explicit profiles",
+          "passed": true,
+          "detail": "[<Profile.CN: 'cn'>, <Profile.GL: 'gl'>]"
+        },
+        {
+          "name": "release key calls carry explicit profiles",
+          "passed": true,
+          "detail": "[<Profile.CN: 'cn'>, <Profile.GL: 'gl'>]"
+        },
+        {
+          "name": "CN header decision carries explicit profiles",
+          "passed": true,
+          "detail": "[<Profile.CN: 'cn'>, <Profile.GL: 'gl'>]"
+        },
+        {
+          "name": "id=12 no longer masquerades as announcement",
+          "passed": true,
+          "detail": "{'content-length': '30', 'content-type': 'application/json'}"
+        },
+        {
+          "name": "id=13 remains the bundled static page",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "no fabricated id=12 file is bundled",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "static source documents native forced-update contract",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "all runtime globals are bound",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "FRIEND_STATUS defines OTHER=0",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Live party helper uses a defined neutral friend status",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "undefined FRIEND_STATUS.NONE is absent",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "friend list emits canonical internal account id",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "greeting lists emit canonical internal account id",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "all profile reads use the compatibility resolver",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "profile response canonicalizes returned user id",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "profile resolves canonical internal user id",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "canonical id resolution does not query invite code",
+          "passed": true,
+          "detail": "[('id', 2)]"
+        },
+        {
+          "name": "profile accepts historical invite-code reference",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "invite-code compatibility runs only after id miss",
+          "passed": true,
+          "detail": "[('id', 610612777), ('invite', 610612777)]"
+        },
+        {
+          "name": "v5.04 social/live fixes retained in v5.05 build",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "startup logger compatibility retained",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Android versionCode advanced beyond v5.04",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Android versionName advanced beyond v5.04",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "name": "Android/PC Python trees match",
+          "passed": true,
+          "detail": "left=2315 right=2315"
+        }
+      ]
+    }
+  },
+  "summary": {
+    "automated_assertions_passed": 87,
+    "automated_assertions_failed": 0,
+    "python_tree_files_each": 2315,
+    "android_compileall": "passed",
+    "pc_compileall": "passed",
+    "android_cn_contract_guard": "passed",
+    "pc_cn_contract_guard": "passed",
+    "android_alembic_payload_files": 28
+  },
+  "preserved_cn_assets": [
+    {
+      "path": "app/src/main/python/npps4/assets/cn_home_banner/npps4_data_transfer.png",
+      "sha256": "08e658be3c2cc43e4b79a1974da0930da655ea829badef4bafd2a5396c6f4520"
+    },
+    {
+      "path": "app/src/main/python/npps4/assets/cn_home_banner/4_0_999.zip",
+      "sha256": "3d20e352095d450662fc4b736e7156d5ef007c717ffd882adfd4a996f174af2b"
+    }
+  ],
+  "limitations": [
+    "No full Android SDK/Gradle/Kotlin build was run in this environment.",
+    "No real CN/GL client session was available for Museum, exclusive-card profile, or Ranking UI testing.",
+    "The full desktop Alembic CLI/application startup was not run because the host environment lacks the project Cryptodome dependency; the exact SQLite migration function and the Android schema upgrader were executed directly against legacy-shaped databases."
+  ]
+}

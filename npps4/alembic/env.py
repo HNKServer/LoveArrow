@@ -1,3 +1,4 @@
+from contextlib import closing
 import asyncio
 import os.path
 from logging.config import fileConfig
@@ -87,7 +88,7 @@ async def run_async_migrations() -> None:
 
         assert connectable.url.database
         dbfile = os.path.join(npps4_config.ROOT_DIR, connectable.url.database)
-        with sqlite3.connect(dbfile, isolation_level=None) as db:
+        with closing(sqlite3.connect(dbfile, isolation_level=None)) as db:
             db.execute("PRAGMA journal_mode=WAL")
 
     async with connectable.connect() as connection:

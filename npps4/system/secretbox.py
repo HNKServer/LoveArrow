@@ -1,3 +1,5 @@
+from . import client_catalogue
+from . import common
 from . import item
 from . import secretbox_model
 from . import user
@@ -6,6 +8,9 @@ from .. import data
 from .. import idol
 from .. import util
 from ..db import main
+from ..db import unit as unit_db
+
+import sqlalchemy
 from ..config import config
 
 
@@ -110,11 +115,107 @@ async def get_secretbox_info_response(
     )
 
 
-async def get_all_secretbox_data_response(context: idol.BasicSchoolIdolContext, target_user: main.User):
-    server_data = data.get()
-    member_category_list: dict[int, list[secretbox_model.SecretboxAllPage]] = {}
+@common.context_cacheable("secretbox_thanks_pools")
+async def _thanks_festival_pools(
+    context: idol.BasicSchoolIdolContext, member_category: int, /
+) -> list[list[int]]:
+    """Return profile-exact SSR/UR pools without trusting reconstructed UnitType rows.
 
-    for secretbox in server_data.secretbox_data.values():
+    Several fallback masters contain the Unit rows but incomplete or mismatched
+    ``unit_type_m.member_category`` metadata.  The exact supplied-client
+    catalogue carries a pre-audited category map; candidates are then
+    intersected with Unit rows which really exist in the active backend so a
+    visible page can never draw an unresolvable card.
+    """
+    catalogue = await client_catalogue.current(context)
+    configured = catalogue.thanks_festival_pools.get(int(member_category), {})
+    candidates = sorted(
+        set(configured.get(5, ())) | set(configured.get(4, ()))
+    )
+    if not candidates:
+        return [[], []]
+    rows = (
+        await context.db.unit.execute(
+            sqlalchemy.select(unit_db.Unit.unit_id, unit_db.Unit.rarity)
+            .where(
+                unit_db.Unit.unit_id.in_(candidates),
+                unit_db.Unit.disable_rank_up == int(const.UNIT_CATEGORY.NORMAL),
+                unit_db.Unit.rarity.in_((5, 4)),
+            )
+            .order_by(unit_db.Unit.unit_id)
+        )
+    ).all()
+    existing = {int(row.unit_id): int(row.rarity) for row in rows}
+    by_rarity = {
+        rarity: [
+            int(unit_id)
+            for unit_id in configured.get(rarity, ())
+            if existing.get(int(unit_id)) == rarity
+        ]
+        for rarity in (5, 4)
+    }
+    util.log(
+        "Thanks Festival profile pool",
+        f"profile={context.profile.value}",
+        f"member_category={member_category}",
+        f"SSR={len(by_rarity[5])}",
+        f"UR={len(by_rarity[4])}",
+    )
+    # Client page order is SSR then UR.
+    return [by_rarity[5], by_rarity[4]]
+
+
+@common.context_cacheable("projected_secretbox")
+async def _project_secretbox(
+    context: idol.BasicSchoolIdolContext, secretbox_id: int, /
+) -> data.schema.SecretboxData | None:
+    raw = data.get().secretbox_data.get(secretbox_id)
+    if raw is None:
+        return None
+    if raw.profiles is not None and context.profile.value not in raw.profiles:
+        return None
+
+    if raw.pool_mode == "thanks_festival":
+        pools = await _thanks_festival_pools(context, int(raw.member_category))
+    else:
+        supported = (await client_catalogue.current(context)).unit_ids
+        pools = [[int(unit_id) for unit_id in pool if int(unit_id) in supported] for pool in raw.rarity_pools]
+
+    if len(pools) != len(raw.rarity_rates) or len(raw.rarity_names) != len(raw.rarity_rates):
+        util.log("Invalid secretbox rarity layout", raw.id_string, severity=util.logging.WARNING)
+        return None
+    if any(int(rate) > 0 and not pools[index] for index, rate in enumerate(raw.rarity_rates)):
+        util.log(
+            "Hiding secretbox with an empty profile pool",
+            raw.id_string,
+            f"profile={context.profile.value}",
+            severity=util.logging.WARNING,
+        )
+        return None
+    return raw.model_copy(update={"rarity_pools": pools})
+
+
+async def get_visible_secretboxes(context: idol.BasicSchoolIdolContext) -> list[data.schema.SecretboxData]:
+    now = util.time()
+    result: list[data.schema.SecretboxData] = []
+    for secretbox_id in data.get().secretbox_data:
+        projected = await _project_secretbox(context, int(secretbox_id))
+        if projected is None:
+            continue
+        if int(projected.start_time) <= now <= int(projected.end_time):
+            result.append(projected)
+    return result
+
+
+def resolve_menu_asset(context: idol.BasicSchoolIdolContext, secretbox: data.schema.SecretboxData) -> str:
+    return _determine_en_path(context, secretbox.menu_asset, secretbox.menu_asset_en)
+
+
+async def get_all_secretbox_data_response(context: idol.BasicSchoolIdolContext, target_user: main.User):
+    member_category_list: dict[int, list[secretbox_model.SecretboxAllPage]] = {}
+    visible_pages = await get_visible_secretboxes(context)
+
+    for secretbox in visible_pages:
         if len(secretbox.animation_asset_layout) > 3:
             animation_assets = secretbox_model.SecretboxAllAnimation3Asset(
                 type=secretbox.animation_layout_type,
@@ -145,7 +246,7 @@ async def get_all_secretbox_data_response(context: idol.BasicSchoolIdolContext, 
                 ),
             )
         page = secretbox_model.SecretboxAllPage(
-            menu_asset=_determine_en_path(context, secretbox.menu_asset, secretbox.menu_asset_en),
+            menu_asset=resolve_menu_asset(context, secretbox),
             page_order=secretbox.order,
             animation_assets=animation_assets,
             button_list=await get_secretbox_button_response(context, target_user, secretbox),
@@ -155,34 +256,35 @@ async def get_all_secretbox_data_response(context: idol.BasicSchoolIdolContext, 
 
     result = sorted(
         (
-            secretbox_model.SecretboxAllMemberCategory(member_category=k, page_list=v)
+            secretbox_model.SecretboxAllMemberCategory(
+                member_category=k, page_list=sorted(v, key=lambda page: page.page_order)
+            )
             for k, v in member_category_list.items()
         ),
         key=lambda k: k.member_category,
     )
-    if config.is_cn_compat():
-        sample_paths: list[str] = []
-        for secretbox in list(server_data.secretbox_data.values())[:4]:
-            sample_paths.append(_determine_en_path(context, secretbox.menu_asset, secretbox.menu_asset_en))
-            for index, path in enumerate(secretbox.animation_asset_layout[:2]):
-                path_en = secretbox.animation_asset_layout_en[index] if index < len(secretbox.animation_asset_layout_en) else None
-                sample_paths.append(_determine_en_path(context, path, path_en))
+    if config.is_cn_compat(context.profile):
         util.log(
             "CN secretbox asset contract",
-            f"categories={len(result)}",
-            f"sample_paths={sample_paths}",
+            f"pages={len(visible_pages)}",
+            f"ids={[page.secretbox_id for page in visible_pages]}",
+            f"sample_paths={[resolve_menu_asset(context, page) for page in visible_pages[:6]]}",
             severity=util.logging.WARNING,
         )
     return result
 
 
-def get_secretbox_data(secretbox_id: int):
-    server_data = data.get()
-    return server_data.secretbox_data[secretbox_id]
+async def get_secretbox_data(
+    context: idol.BasicSchoolIdolContext, secretbox_id: int
+) -> data.schema.SecretboxData:
+    projected = await _project_secretbox(context, int(secretbox_id))
+    if projected is None:
+        raise KeyError(secretbox_id)
+    return projected
 
 
 def roll_units(
-    secretbox_id: int,
+    secretbox_data: data.schema.SecretboxData,
     amount: int,
     /,
     *,
@@ -190,9 +292,9 @@ def roll_units(
     guarantee_amount: int = 0,
     rate_modifier: list[int] | None = None,
 ):
-    secretbox_data = get_secretbox_data(secretbox_id)
-    # Calculate weighted probabilities
     rates = rate_modifier if rate_modifier is not None else secretbox_data.rarity_rates
+    if len(rates) != len(secretbox_data.rarity_pools):
+        raise ValueError("secretbox rate modifier does not match rarity pools")
     picked_rarity_index = util.SYSRAND.choices(range(len(secretbox_data.rarity_rates)), rates, k=amount)
 
     if guarantee_rarity > 0 and guarantee_amount > 0:
@@ -203,13 +305,10 @@ def roll_units(
             if picked_rarity_index[random_index] < rindex:
                 picked_rarity_index[random_index] = rindex
 
-    # Start rolling
     return [util.SYSRAND.choice(secretbox_data.rarity_pools[i]) for i in picked_rarity_index]
 
 
-def get_secretbox_button(secretbox_data: int | data.schema.SecretboxData, button_index: int):
-    if isinstance(secretbox_data, int):
-        secretbox_data = get_secretbox_data(secretbox_id=secretbox_data)
+def get_secretbox_button(secretbox_data: data.schema.SecretboxData, button_index: int):
     return secretbox_data.buttons[button_index - 1]
 
 

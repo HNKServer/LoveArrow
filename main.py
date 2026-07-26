@@ -47,7 +47,7 @@ def wrapexec(cmd: str, *args: str):
 def main() -> int:
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-H", "--host", help="Bind to this address.", default="0.0.0.0")
-    parser.add_argument("-p", "--port", help="Bind to this port.", type=int, default=51376)
+    parser.add_argument("-p", "--port", help="Bind to this port.", type=int, default=8080)
     parser.add_argument(
         "-w", "--workers", help="Amount of workers.", type=int, default=max(int(os.environ.get("NPPS4_WORKER", "1")), 1)
     )

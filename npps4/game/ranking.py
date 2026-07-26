@@ -2,8 +2,8 @@ import pydantic
 
 from . import models
 from .. import idol
-from .. import util
 from ..system import common
+from ..system import profile_projection
 from ..system import ranking
 from ..system import reward
 from ..system import unit
@@ -39,136 +39,113 @@ class RankingData(pydantic.BaseModel):
 
 
 class RankingResponse(common.TimestampMixin, PageableMixin):
-    rank: int | None
+    rank: int = 0
     items: list[RankingData]
     total_cnt: int
     present_cnt: int
 
 
-@idol.register("ranking", "live")
+
+
+async def _ranking_data(
+    context: idol.BasicSchoolIdolContext,
+    target_user,
+    *,
+    rank: int,
+    score: int,
+) -> RankingData | None:
+    projected = await profile_projection.center_unit(context, target_user)
+    if projected is None:
+        return None
+    unit_data, _unit_info, unit_full_data, unit_stats = projected
+    removable_skills = await profile_projection.filter_removable_skills(
+        context, await unit.get_unit_removable_skills(context, unit_data)
+    )
+    display_costume = await profile_projection.social_costume(
+        context, target_user, projected
+    )
+    return RankingData(
+        rank=rank,
+        score=score,
+        user_data=models.UserData(user_id=target_user.id, name=target_user.name, level=target_user.level),
+        center_unit_info=common.CenterUnitInfo(
+            unit_id=unit_data.unit_id,
+            level=unit_full_data.level,
+            rank=unit_data.rank,
+            love=unit_data.love,
+            display_rank=unit_data.display_rank,
+            unit_skill_exp=unit_data.skill_exp,
+            unit_removable_skill_capacity=unit_data.unit_removable_skill_capacity,
+            smile=unit_stats.smile,
+            cute=unit_stats.pure,
+            cool=unit_stats.cool,
+            is_love_max=unit_full_data.is_love_max,
+            is_level_max=unit_full_data.is_level_max,
+            is_rank_max=unit_full_data.is_rank_max,
+            removable_skill_ids=removable_skills,
+            costume=display_costume,
+        ),
+        setting_award_id=await profile_projection.award_id(context, target_user.active_award),
+    )
+
+@idol.register("ranking", "live", xmc_verify=idol.XMCVerifyMode.NONE)
 async def ranking_live(context: idol.SchoolIdolUserParams, request: RankingLiveRequest) -> RankingResponse:
     current_user = await user.get_current(context)
-    total_cnt, player_scores = await ranking.get_live_ranking(context, request.live_difficulty_id, request.page)
+    page = max(int(request.page), 0)
+    total_cnt, player_scores = await ranking.get_live_ranking(context, request.live_difficulty_id, page)
 
     rank_player_scores: list[RankingData] = []
-    for i, (user_id, score) in enumerate(player_scores, 1):
-        # TODO: Deduplicate with partyInfo code
+    page_offset = page * 20
+    for i, (user_id, score) in enumerate(player_scores, page_offset + 1):
         target_user = await user.get(context, user_id)
         if target_user is None:
             continue
-
-        # Get unit center info
-        unit_center = await unit.get_unit_center(context, target_user)
-        if unit_center is None:
-            continue
-
-        unit_data = await unit.get_unit(context, unit_center)
-        unit.validate_unit(target_user, unit_data)
-        unit_info = await unit.get_unit_info(context, unit_data.unit_id)
-        if unit_info is None:
-            continue
-
-        removable_skills = await unit.get_unit_removable_skills(context, unit_data)
-        unit_full_data, unit_stats = await unit.get_unit_data_full_info(context, unit_data)
-
-        rank_player_scores.append(
-            RankingData(
-                rank=i,
-                score=score,
-                user_data=models.UserData(user_id=user_id, name=target_user.name, level=target_user.level),
-                center_unit_info=common.CenterUnitInfo(
-                    unit_id=unit_data.unit_id,
-                    level=unit_full_data.level,
-                    rank=unit_data.rank,
-                    love=unit_data.love,
-                    display_rank=unit_data.display_rank,
-                    unit_skill_exp=unit_data.skill_exp,
-                    unit_removable_skill_capacity=unit_data.unit_removable_skill_capacity,
-                    smile=unit_stats.smile,
-                    cute=unit_stats.pure,
-                    cool=unit_stats.cool,
-                    is_love_max=unit_full_data.is_love_max,
-                    is_level_max=unit_full_data.is_level_max,
-                    is_rank_max=unit_full_data.is_rank_max,
-                    removable_skill_ids=removable_skills,
-                ),
-                setting_award_id=target_user.active_award,
-            )
-        )
+        projected = await _ranking_data(context, target_user, rank=i, score=score)
+        if projected is not None:
+            rank_player_scores.append(projected)
 
     return RankingResponse(
-        page=request.page,
-        rank=None,
+        page=page,
+        rank=await ranking.get_live_rank(context, request.live_difficulty_id, current_user.id),
         items=rank_player_scores,
         total_cnt=total_cnt,
         present_cnt=await reward.count_presentbox(context, current_user),
     )
 
 
-@idol.register("ranking", "player")
+@idol.register("ranking", "player", xmc_verify=idol.XMCVerifyMode.NONE)
 async def ranking_player(context: idol.SchoolIdolUserParams, request: RankingPlayerRequest) -> RankingResponse:
     current_user = await user.get_current(context)
 
-    if request.id > 0:
-        util.stub("ranking", "player", request)
-        raise idol.error.by_code(idol.error.ERROR_CODE_USER_NOT_EXIST)
+    page = max(int(request.page), 0)
+    # honoka-chan does not implement /ranking/player. Its generic router fallback
+    # returns a signed HTTP-200 game error (status_code=600, error_code=1), which
+    # the clients render as the single safe "contact support" dialog instead of
+    # retrying an HTTP transport failure five times. Keep real daily rankings when
+    # data exists, but use the same safe fallback while this server has no rows.
+    if int(request.term) != 1 or int(request.daily_index) not in (1, 2):
+        raise idol.error.by_code(idol.error.ERROR_CODE_LIB_ERROR)
 
-    rankings, total_count = await ranking.get_daily_ranking(context, request.page, request.daily_index == 2)
+    yesterday = int(request.daily_index) == 2
+    # id > 0 requests the current player's position; it is not a user primary key.
+    rankings, total_count = await ranking.get_daily_ranking(context, page, yesterday)
+    if total_count <= 0:
+        raise idol.error.by_code(idol.error.ERROR_CODE_LIB_ERROR)
+
     items: list[RankingData] = []
-    current_rank: int | None = None
+    current_rank = await ranking.get_daily_rank(context, current_user.id, yesterday)
 
-    for i, rank in enumerate(rankings, request.page * 20 + 1):
+    for i, rank in enumerate(rankings, page * 20 + 1):
         target_user = await user.get(context, rank.user_id)
         if target_user is None:
             continue
 
-        if rank.user_id == current_user.id:
-            current_rank = i
-
-        # Get unit center info
-        unit_center = await unit.get_unit_center(context, target_user)
-        if unit_center is None:
-            continue
-
-        unit_data = await unit.get_unit(context, unit_center)
-        unit.validate_unit(target_user, unit_data)
-        unit_info = await unit.get_unit_info(context, unit_data.unit_id)
-        if unit_info is None:
-            continue
-
-        removable_skills = await unit.get_unit_removable_skills(context, unit_data)
-        unit_full_data, unit_stats = await unit.get_unit_data_full_info(context, unit_data)
-
-        items.append(
-            RankingData(
-                rank=i,
-                score=rank.score,
-                user_data=models.UserData(user_id=rank.user_id, name=target_user.name, level=target_user.level),
-                center_unit_info=common.CenterUnitInfo(
-                    unit_id=unit_data.unit_id,
-                    level=unit_full_data.level,
-                    rank=unit_data.rank,
-                    love=unit_data.love,
-                    display_rank=unit_data.display_rank,
-                    unit_skill_exp=unit_data.skill_exp,
-                    unit_removable_skill_capacity=unit_data.unit_removable_skill_capacity,
-                    smile=unit_stats.smile,
-                    cute=unit_stats.pure,
-                    cool=unit_stats.cool,
-                    is_love_max=unit_full_data.is_love_max,
-                    is_level_max=unit_full_data.is_level_max,
-                    is_rank_max=unit_full_data.is_rank_max,
-                    removable_skill_ids=removable_skills,
-                ),
-                setting_award_id=target_user.active_award,
-            )
-        )
-
-    if len(items) == 0:
-        raise idol.error.by_code(idol.error.ERROR_CODE_OUT_OF_RANG)
+        projected = await _ranking_data(context, target_user, rank=i, score=rank.score)
+        if projected is not None:
+            items.append(projected)
 
     return RankingResponse(
-        page=request.page,
+        page=page,
         rank=current_rank,
         items=items,
         total_cnt=total_count,

@@ -10,6 +10,7 @@ from . import album
 from . import common
 from . import exchange
 from . import item_model
+from . import profile_unit_master
 from . import reward
 from . import unit_model
 from .. import const
@@ -86,10 +87,13 @@ async def create_unit(
     unit_info = await get_unit_info(context, unit_id)
     if unit_info is None:
         raise ValueError("invalid unit_id")
-    if unit_info.disable_rank_up > 0:
+    if (
+        unit_info.disable_rank_up > 0
+        and unit_info.disable_rank_up != const.UNIT_CATEGORY.COSTUME
+    ):
         return None
 
-    rarity = await context.db.unit.get(unit.Rarity, unit_info.rarity)
+    rarity = await get_unit_rarity(context, unit_info.rarity)
     if rarity is None:
         raise ValueError("cannot get rarity (is db corrupt?)")
 
@@ -176,7 +180,10 @@ def validate_unit(user: main.User, unit_data: main.Unit | None):
 
 async def get_supporter_unit(context: idol.BasicSchoolIdolContext, user: main.User, unit_id: int, ensure: bool = False):
     unit_info = await get_unit_info(context, unit_id)
-    if unit_info is None or unit_info.disable_rank_up == 0:
+    if unit_info is None or unit_info.disable_rank_up in (
+        const.UNIT_CATEGORY.NORMAL,
+        const.UNIT_CATEGORY.COSTUME,
+    ):
         return None
 
     q = (
@@ -247,13 +254,18 @@ async def get_unit_support_list_response(context: idol.BasicSchoolIdolContext, /
 async def get_unit_info(context: idol.BasicSchoolIdolContext, unit_id: int, /):
     unit_info = await db.get_decrypted_row(context.db.unit, unit.Unit, unit_id)
     if unit_info is None:
+        unit_info = await profile_unit_master.unit_by_id(context, unit_id)
+    if unit_info is None:
         raise ValueError(f"info on unit_id {unit_id} does not exist")
     return unit_info
 
 
 @common.context_cacheable("unit_rarity")
-def get_unit_rarity(context: idol.BasicSchoolIdolContext, rarity: int, /):
-    return context.db.unit.get(unit.Rarity, rarity)
+async def get_unit_rarity(context: idol.BasicSchoolIdolContext, rarity: int, /):
+    result = await context.db.unit.get(unit.Rarity, rarity)
+    if result is None:
+        result = await profile_unit_master.rarity_by_id(context, rarity)
+    return result
 
 
 @common.context_cacheable("unit_by_number")
@@ -281,14 +293,20 @@ async def get_unit_level_up_pattern(context: idol.BasicSchoolIdolContext, unit_l
         unit.UnitLevelUpPattern.unit_level_up_pattern_id == unit_level_up_pattern_id
     )
     result = await context.db.unit.execute(q)
-    return list(result.scalars())
+    rows = list(result.scalars())
+    if not rows:
+        rows = await profile_unit_master.level_up_rows(context, unit_level_up_pattern_id)
+    return rows
 
 
 @common.context_cacheable("unit_level_limit_pattern")
 async def get_unit_level_limit_pattern(context: idol.BasicSchoolIdolContext, level_limit_id: int, /):
     q = sqlalchemy.select(unit.LevelLimitPattern).where(unit.LevelLimitPattern.unit_level_limit_id == level_limit_id)
     result = await context.db.unit.execute(q)
-    return list(result.scalars())
+    rows = list(result.scalars())
+    if not rows:
+        rows = await profile_unit_master.level_limit_rows(context, level_limit_id)
+    return rows
 
 
 @common.context_cacheable("unit_skill")
@@ -296,7 +314,10 @@ async def get_unit_skill(context: idol.BasicSchoolIdolContext, default_unit_skil
     if default_unit_skill_id is None or default_unit_skill_id == 0:
         return None
 
-    return await db.get_decrypted_row(context.db.unit, unit.UnitSkill, default_unit_skill_id)
+    result = await db.get_decrypted_row(context.db.unit, unit.UnitSkill, default_unit_skill_id)
+    if result is None:
+        result = await profile_unit_master.skill_by_id(context, default_unit_skill_id)
+    return result
 
 
 @common.context_cacheable("unit_skill_level_up_pattern")
@@ -307,7 +328,10 @@ async def get_unit_skill_level_up_pattern(context: idol.BasicSchoolIdolContext, 
         .order_by(unit.UnitSkillLevelUpPattern.skill_level)
     )
     result = await context.db.unit.execute(q)
-    return list(result.scalars())
+    rows = list(result.scalars())
+    if not rows:
+        rows = await profile_unit_master.skill_level_up_rows(context, unit_skill)
+    return rows
 
 
 def detach_from_deck_2(unit_owning_user_id: int, deck: main.UnitDeck):
@@ -692,7 +716,35 @@ async def get_unit_stats_from_unit_data(context: idol.BasicSchoolIdolContext, ca
     return stats
 
 
-async def get_unit_data_full_info(context: idol.BasicSchoolIdolContext, unit_data: main.Unit):
+async def _costume_appearance(
+    context: idol.BasicSchoolIdolContext,
+    unit_data: main.Unit,
+    *,
+    native_fallback: bool,
+    social_projection: bool,
+) -> unit_model.CostumeInfo | None:
+    # Local import avoids a unit <-> costume module initialization cycle.
+    from . import costume as costume_system
+
+    if social_projection:
+        return await costume_system.social_appearance_for_owned_unit(
+            context, unit_data, native_fallback=native_fallback
+        )
+
+    override = await costume_system.appearance_for_owned_unit(context, unit_data)
+    if override is not None or not native_fallback:
+        return override
+    return await costume_system.default_appearance(context, unit_data)
+
+
+async def get_unit_data_full_info(
+    context: idol.BasicSchoolIdolContext,
+    unit_data: main.Unit,
+    *,
+    include_costume: bool = True,
+    native_costume_fallback: bool = False,
+    social_costume_projection: bool = False,
+):
     unit_info = await get_unit_info(context, unit_data.unit_id)
     if unit_info is None:
         raise ValueError("unit_info is none")
@@ -752,6 +804,16 @@ async def get_unit_data_full_info(context: idol.BasicSchoolIdolContext, unit_dat
             is_skill_level_max=skill_max,
             is_removable_skill_capacity_max=removable_skill_max,
             insert_date=util.timestamp_to_datetime(unit_data.insert_date),
+            costume=(
+                await _costume_appearance(
+                    context,
+                    unit_data,
+                    native_fallback=native_costume_fallback,
+                    social_projection=social_costume_projection,
+                )
+                if include_costume
+                else None
+            ),
         ),
         stats,
     )
@@ -778,7 +840,11 @@ async def _unit_type_has_tag_impl(context: idol.BasicSchoolIdolContext, unit_typ
         unit.UnitTypeMemberTag.member_tag_id == unit_type_member_tag_ids[1],
     )
     result = await context.db.unit.execute(q)
-    return result.scalar() is not None
+    if result.scalar() is not None:
+        return True
+    return await profile_unit_master.unit_type_has_tag(
+        context, unit_type_member_tag_ids[0], unit_type_member_tag_ids[1]
+    )
 
 
 async def unit_type_has_tag(context: idol.BasicSchoolIdolContext, unit_type_id: int, member_tag_id: int):
@@ -786,13 +852,19 @@ async def unit_type_has_tag(context: idol.BasicSchoolIdolContext, unit_type_id: 
 
 
 @common.context_cacheable("unit_leader_skill")
-def get_leader_skill(context: idol.BasicSchoolIdolContext, leader_skill: int, /):
-    return db.get_decrypted_row(context.db.unit, unit.LeaderSkill, leader_skill)
+async def get_leader_skill(context: idol.BasicSchoolIdolContext, leader_skill: int, /):
+    result = await db.get_decrypted_row(context.db.unit, unit.LeaderSkill, leader_skill)
+    if result is None:
+        result = await profile_unit_master.leader_by_id(context, leader_skill)
+    return result
 
 
 @common.context_cacheable("unit_extra_leader_skill")
-def get_extra_leader_skill(context: idol.BasicSchoolIdolContext, leader_skill: int, /):
-    return context.db.unit.get(unit.ExtraLeaderSkill, leader_skill)
+async def get_extra_leader_skill(context: idol.BasicSchoolIdolContext, leader_skill: int, /):
+    result = await context.db.unit.get(unit.ExtraLeaderSkill, leader_skill)
+    if result is None:
+        result = await profile_unit_master.extra_leader_by_id(context, leader_skill)
+    return result
 
 
 async def get_removable_skill_info(context: idol.BasicSchoolIdolContext, user: main.User, removable_skill_id: int):
@@ -902,10 +974,26 @@ async def get_removable_skill_info_request(context: idol.BasicSchoolIdolContext,
     owning_info = await get_all_unit_removable_skill(context, user)
     sis_info = await get_all_unit_removable_skills(context, user)
 
+    supported_skills: set[int] = set()
+    for row in owning_info:
+        try:
+            if await get_removable_skill_game_info(context, row.unit_removable_skill_id) is not None:
+                supported_skills.add(int(row.unit_removable_skill_id))
+        except (ValueError, RuntimeError):
+            continue
+
+    visible_equipment: dict[int, list[int]] = {}
     used_sis: dict[int, int] = {}
-    for unit_sis in sis_info.values():
-        for sis in unit_sis:
-            used_sis[sis] = used_sis.setdefault(sis, 0) + 1
+    for owning_unit_id, equipped_ids in sis_info.items():
+        owned = await get_unit(context, owning_unit_id)
+        if owned is None or await get_unit_info(context, owned.unit_id) is None:
+            continue
+        filtered = [int(skill_id) for skill_id in equipped_ids if int(skill_id) in supported_skills]
+        if not filtered:
+            continue
+        visible_equipment[int(owning_unit_id)] = filtered
+        for skill_id in filtered:
+            used_sis[skill_id] = used_sis.get(skill_id, 0) + 1
 
     return unit_model.RemovableSkillInfoResponse(
         owning_info=[
@@ -916,17 +1004,18 @@ async def get_removable_skill_info_request(context: idol.BasicSchoolIdolContext,
                 insert_date=util.timestamp_to_datetime(i.insert_date),
             )
             for i in owning_info
+            if int(i.unit_removable_skill_id) in supported_skills
         ],
-        equipment_info=dict(
-            (
-                str(i),
-                unit_model.EquipRemovableSkillInfo(
-                    unit_owning_user_id=i,
-                    detail=[unit_model.EquipRemovableSkillInfoDetail(unit_removable_skill_id=sis) for sis in v],
-                ),
+        equipment_info={
+            str(owning_id): unit_model.EquipRemovableSkillInfo(
+                unit_owning_user_id=owning_id,
+                detail=[
+                    unit_model.EquipRemovableSkillInfoDetail(unit_removable_skill_id=skill_id)
+                    for skill_id in skill_ids
+                ],
             )
-            for i, v in sis_info.items()
-        ),
+            for owning_id, skill_ids in visible_equipment.items()
+        },
     )
 
 
@@ -941,10 +1030,11 @@ async def unit_to_item[_T: unit_model.UnitSupportItem](
 
 @common.context_cacheable("unit_support_member")
 async def is_support_member(context: idol.BasicSchoolIdolContext, unit_id: int, /):
-    unit_info = await context.db.unit.get(unit.Unit, unit_id)
-    if unit_info is None:
-        raise ValueError("invalid unit_id")
-    return unit_info.disable_rank_up > 0
+    unit_info = await get_unit_info(context, unit_id)
+    return (
+        unit_info.disable_rank_up > 0
+        and unit_info.disable_rank_up != const.UNIT_CATEGORY.COSTUME
+    )
 
 
 @dataclasses.dataclass
@@ -1034,7 +1124,9 @@ async def process_quick_add(
 
 @common.context_cacheable("has_signed_variant")
 async def has_signed_variant(context: idol.BasicSchoolIdolContext, unit_id: int):
-    return await context.db.unit.get(unit.SignAsset, unit_id) is not None
+    if await context.db.unit.get(unit.SignAsset, unit_id) is not None:
+        return True
+    return await profile_unit_master.sign_exists(context, unit_id)
 
 
 async def is_unit_max(context: idol.BasicSchoolIdolContext, user: main.User):
@@ -1128,7 +1220,10 @@ async def create_unit_item(
     if unit_info is None:
         raise ValueError("invalid unit_id")
 
-    if unit_info.disable_rank_up > 0:
+    if (
+        unit_info.disable_rank_up > 0
+        and unit_info.disable_rank_up != const.UNIT_CATEGORY.COSTUME
+    ):
         return unit_model.UnitSupportItem(
             item_id=unit_id, unit_rarity_id=unit_info.rarity, attribute=unit_info.attribute_id, amount=amount
         )

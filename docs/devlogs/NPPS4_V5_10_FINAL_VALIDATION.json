@@ -1,0 +1,252 @@
+{
+  "version": "v5.10-wrapper-endpoint-search-test-resources",
+  "passed": 48,
+  "failed": 0,
+  "results": [
+    {
+      "name": "Wrapper default host remains localhost",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Wrapper default port restored to 51376",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Endpoint is stored in SharedPreferences",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Endpoint is restored on app launch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Endpoint edits persist while stopped",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Host and port controls lock while server is active",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Status indicator uses actual Python host and port",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Starting and restarting save and lock endpoint",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Every file editor/log viewer gets search controls",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Search selects and scrolls to matching line",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Search supports case-insensitive previous/next navigation",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Automatic search keeps keyboard focus in the search field",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Stopped status polling does not overwrite endpoint drafts",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android Python compileall",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "PC Python compileall",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android and PC Python trees are byte-identical",
+      "ok": true,
+      "detail": "Android=2319, PC=2319"
+    },
+    {
+      "name": "server_data contains exactly one LOVEARROWSHOOT code",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT calls the comprehensive resource function",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "serial-code function is registered",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Build ID is v5.10",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android versionCode/versionName are 510/0.5.10",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android Python bridge defaults use 51376",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android bundled workspace migrates required serial code",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android Python AST parse",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "PC Python AST parse",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT sets game coin target",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT sets friend points target",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT sets free and paid Loveca targets",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT expands card, waiting room and friend capacity",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT restores training energy and LP",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT tops up ordinary items and skips currency item IDs",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT tops up recovery items",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT tops up sticker/exchange currencies",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT tops up SIS",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT tops up supporter members",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT is reusable and idempotent",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "LOVEARROWSHOOT returns a readable result",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android workspace migration preserves user server_data fields",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android workspace migration preserves custom serial codes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android workspace migration appends LOVEARROWSHOOT",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android workspace migration does not duplicate built-in code",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android CN contract guard",
+      "ok": true,
+      "detail": "CN contract guard OK"
+    },
+    {
+      "name": "PC CN contract guard",
+      "ok": true,
+      "detail": "CN contract guard OK"
+    },
+    {
+      "name": "Android accessory regression guard",
+      "ok": true,
+      "detail": "PASS: v5.08 accessory tab and GL auto-create contract guard"
+    },
+    {
+      "name": "PC accessory regression guard",
+      "ok": true,
+      "detail": "PASS: v5.08 accessory tab and GL auto-create contract guard"
+    },
+    {
+      "name": "Kotlin parser reports no syntax-level diagnostics",
+      "ok": true,
+      "detail": "Android SDK classes are unresolved in this environment, so this is parser-only, not a full Android build."
+    },
+    {
+      "name": "Android Wrapper README documents 51376 endpoint",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "Android runtime endpoint code has no stale 8080 default",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "limitations": [
+    "No Android SDK/Gradle wrapper is available in this environment, so the Kotlin/Android project was not fully compiled into an APK.",
+    "SharedPreferences persistence, endpoint locking and editor search were validated by source contract and Kotlin parser checks; final touch/IME behavior still requires device testing.",
+    "LOVEARROWSHOOT was executed through an isolated behavioral harness and not against a real client database in this environment."
+  ]
+}

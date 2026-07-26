@@ -10,6 +10,7 @@ import sqlalchemy
 
 from . import database
 from . import session
+from .. import client_profile
 from .. import idoltype
 from .. import util
 from ..config import config
@@ -29,14 +30,42 @@ def _parse_client_version_header(client_version: str) -> tuple[int, int]:
 class BasicSchoolIdolContext:
     """Context object used only to access the database function."""
 
-    def __init__(self, lang: idoltype.Language | str = idoltype.Language.jp):
+    def __init__(
+        self,
+        lang: idoltype.Language | str = idoltype.Language.jp,
+        profile: client_profile.ClientProfile | str | None = None,
+    ):
         self.lang = idoltype.normalize_language(lang)
-        self.db = database.Database()
+        self.profile = (
+            config.get_default_profile()
+            if profile is None
+            else client_profile.ClientProfile.normalize(profile)
+        )
+        # FastAPI executes each request in its own task/context.  Keep the
+        # profile selected for the complete request, including client_check()
+        # calls which run between the two async-with database scopes.
+        client_profile.set_current(self.profile)
+        self.db = database.Database(self.profile)
         self.cache: dict[str, dict[Any, Any]] = {}
         # Which server RSA private key matched this client.  The authkey
         # endpoint auto-detects it, and later authenticated responses reuse it
         # so GL/JP clients and honoka-chan/CN clients can coexist.
         self.server_rsa_label: str | None = None
+
+    def select_profile(self, profile: client_profile.ClientProfile | str) -> client_profile.ClientProfile:
+        """Select the request profile before any profile-specific master access.
+
+        The main account/session database is shared.  Authkey may therefore
+        refine the temporary pre-login default after decrypting the client key,
+        and authenticated requests may adopt the profile stored in their signed
+        session token.  Updating ``Database.profile`` keeps all lazily-created
+        master sessions in the same resolved profile.
+        """
+        normalized = client_profile.ClientProfile.normalize(profile)
+        self.profile = normalized
+        self.db.profile = normalized
+        client_profile.set_current(normalized)
+        return normalized
 
     async def __aenter__(self):
         mainsession = self.db.main
@@ -127,6 +156,14 @@ class SchoolIdolParams(BasicSchoolIdolContext):
             raise fastapi.HTTPException(422, detail="Invalid consumerKey")
 
         self.client_version = _parse_client_version_header(client_version)
+        detected_profile = client_profile.detect(
+            client_version=self.client_version,
+            explicit_header=request.headers.get("X-NPPS4-Profile"),
+            request_path=request.url.path,
+            default=config.get_default_profile(),
+        )
+        if not config.profile_enabled(detected_profile):
+            raise fastapi.HTTPException(503, detail=f"{detected_profile.value.upper()} client profile is disabled")
 
         try:
             self.nonce = int(authorize_parsed.get("nonce", 0))
@@ -162,7 +199,7 @@ class SchoolIdolParams(BasicSchoolIdolContext):
         else:
             self.raw_request_data = str(request_data).encode("utf-8", "replace")
 
-        super().__init__(lang)
+        super().__init__(lang, detected_profile)
 
     def support_background_task(self):
         return True
@@ -196,6 +233,16 @@ class SchoolIdolAuthParams(SchoolIdolParams):
             self.token = await session.decapsulate_token(self, self.token_text)
         if self.token is None:
             raise fastapi.HTTPException(403, detail="Invalid token")
+        if not config.profile_enabled(self.token.profile):
+            raise fastapi.HTTPException(503, detail=f"{self.token.profile.value.upper()} client profile is disabled")
+        if self.token.profile != self.profile:
+            util.log(
+                "Client profile resolved from session",
+                f"temporary={self.profile.value}",
+                f"session={self.token.profile.value}",
+                severity=util.logging.INFO,
+            )
+        self.select_profile(self.token.profile)
         self.server_rsa_label = self.token.server_rsa_label
 
 
@@ -233,30 +280,30 @@ TOKEN_SIZE = 16
 
 @dataclasses.dataclass(kw_only=True)
 class TokenData:
+    token: str
     client_key: bytes
     server_key: bytes
     user_id: int
+    profile: client_profile.ClientProfile
     server_rsa_label: str | None = None
-
-
-# Runtime-only association between authorize_token strings and the server RSA
-# key label detected during /login/authkey.  A process restart simply makes the
-# client repeat authkey, which is acceptable and avoids changing the DB schema.
-_TOKEN_RSA_LABEL: dict[str, str | None] = {}
 
 
 async def encapsulate_token(context: BasicSchoolIdolContext, server_key: bytes, client_key: bytes, user_id: int = 0):
     salt = util.randbytes(SALT_SIZE)
     token = util.randbytes(TOKEN_SIZE).hex()[:TOKEN_SIZE]
     session = main.Session(
-        token=token, user_id=None if user_id == 0 else user_id, client_key=client_key, server_key=server_key
+        token=token,
+        user_id=None if user_id == 0 else user_id,
+        profile=context.profile.value,
+        server_rsa_label=getattr(context, "server_rsa_label", None),
+        client_key=client_key,
+        server_key=server_key,
     )
     result = cast(bytes, TOKEN_SERIALIZER.dumps(token, salt))
 
     context.db.main.add(session)
     await context.db.main.flush()
     token_text = str(base64.urlsafe_b64encode(salt + result), "utf-8")
-    _TOKEN_RSA_LABEL[token_text] = getattr(context, "server_rsa_label", None)
     return token_text
 
 
@@ -309,16 +356,27 @@ async def decapsulate_token(context: BasicSchoolIdolContext, token_data: str):
         return None
 
     session.last_accessed = util.time()
+    try:
+        profile = client_profile.ClientProfile.normalize(session.profile)
+    except ValueError:
+        return None
+    if not config.profile_enabled(profile):
+        return None
     return TokenData(
+        token=session.token,
         client_key=session.client_key,
         server_key=session.server_key,
         user_id=session.user_id or 0,
-        server_rsa_label=_TOKEN_RSA_LABEL.get(token_data),
+        profile=profile,
+        server_rsa_label=session.server_rsa_label,
     )
 
 
 async def invalidate_current(context: SchoolIdolParams):
-    if context.token_text is not None:
-        q = sqlalchemy.delete(main.Session).where(main.Session.token == context.token_text)
+    # ``token_text`` is the serialized/salted wire token; Session.token stores
+    # the internal random token.  v4.60 compared the two and therefore never
+    # invalidated a session.
+    if context.token is not None:
+        q = sqlalchemy.delete(main.Session).where(main.Session.token == context.token.token)
         await context.db.main.execute(q)
         await context.db.main.flush()

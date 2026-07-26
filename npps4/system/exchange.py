@@ -1,11 +1,14 @@
 import collections.abc
+
 import pydantic
 import sqlalchemy
 
 from . import award
 from . import background
+from . import client_catalogue
 from . import common
 from .. import const
+from .. import client_profile
 from .. import data
 from .. import idol
 from .. import util
@@ -13,6 +16,68 @@ from ..db import exchange
 from ..db import main
 
 from typing import Any
+
+
+
+
+async def _localized_exchange_title(
+    context: idol.BasicSchoolIdolContext,
+    raw_info: data.schema.StickerShop,
+    /,
+) -> str:
+    """Return the configured title for the requesting client language.
+
+    The bundled release configuration carries explicit ``name_cn`` values for
+    every CN-visible sticker-shop row.  Runtime code intentionally performs no
+    old-workspace catalogue lookup and no Master-database title synthesis.
+    Operators who keep a custom configuration remain responsible for its text.
+    """
+    if context.profile is client_profile.ClientProfile.CN and raw_info.name_cn is not None:
+        title = raw_info.name_cn.strip()
+        if title:
+            return title
+
+    fallback = context.get_text(raw_info.name, raw_info.name_en, raw_info.name_cn)
+    return raw_info.name if fallback is None else fallback
+
+
+async def _raw_exchange_item_supported(
+    context: idol.BasicSchoolIdolContext, raw_info: data.schema.StickerShop, /
+) -> bool:
+    """Return whether the exact requesting client can render this shop row.
+
+    The supplied CN server master is partly reconstructed from a later honoka
+    fallback, so querying that overlay is not a reliable client-capability
+    test.  This check uses compact immutable ID sets extracted from the actual
+    supplied CN and GL client master databases.  It contains no user data and
+    performs no per-row database query.
+    """
+    profile = context.profile.value
+    if raw_info.profiles is not None and profile not in raw_info.profiles:
+        return False
+
+    catalogue = await client_catalogue.current(context)
+    if any(int(cost.rarity) not in catalogue.exchange_point_ids for cost in raw_info.costs):
+        return False
+
+    item_id = int(raw_info.item_id)
+    match raw_info.add_type:
+        case const.ADD_TYPE.ITEM:
+            return item_id in catalogue.item_ids
+        case const.ADD_TYPE.UNIT:
+            return item_id in catalogue.unit_ids
+        case const.ADD_TYPE.ACCESSORY:
+            return item_id in catalogue.accessory_ids
+        case const.ADD_TYPE.AWARD:
+            return item_id in catalogue.award_ids
+        case const.ADD_TYPE.BACKGROUND:
+            return item_id in catalogue.background_ids
+        case const.ADD_TYPE.MUSEUM:
+            return item_id in catalogue.museum_ids
+        case _:
+            # Numeric currencies, exchange points and other response types do
+            # not identify one of the catalogued client-rendered master rows.
+            return True
 
 
 class ExchangePointInfo(pydantic.BaseModel):
@@ -190,7 +255,7 @@ async def get_exchange_item_info_by_raw_info(
 
     exchange_item_id = raw_info.exchange_item_id
     exchange_limit = await _get_exchange_item_limit(context, user, exchange_item_id, False)
-    exchange_title = context.get_text(raw_info.name, raw_info.name_en)
+    exchange_title = await _localized_exchange_title(context, raw_info)
     exchange_is_new = exchange_limit is None
     exchange_limit = await _get_exchange_item_limit(context, user, exchange_item_id, True)
     assert exchange_limit is not None
@@ -246,12 +311,22 @@ async def get_exchange_item_info(context: idol.BasicSchoolIdolContext, /, user: 
     server_data = data.get()
     result: list[ExchangeItemBase] = []
 
+    time = util.time()
+    hidden = 0
     for raw_info in server_data.sticker_shop:
-        time = util.time()
-
+        if not await _raw_exchange_item_supported(context, raw_info):
+            hidden += 1
+            continue
         if raw_info.end_time == 0 or raw_info.end_time >= time:
             result.append(await get_exchange_item_info_by_raw_info(context, user, raw_info, time))
 
+    util.log(
+        "Sticker shop client projection",
+        f"profile={context.profile.value}",
+        f"visible={len(result)}",
+        f"hidden_unsafe={hidden}",
+        severity=util.logging.WARNING if hidden else util.logging.INFO,
+    )
     return result
 
 
@@ -260,6 +335,8 @@ async def find_raw_exchange_item_info_by_id(context: idol.BasicSchoolIdolContext
 
     for raw_info in server_data.sticker_shop:
         if raw_info._internal_id == exchange_item_id:
-            return raw_info
+            if await _raw_exchange_item_supported(context, raw_info):
+                return raw_info
+            return None
 
     return None

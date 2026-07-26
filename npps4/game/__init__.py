@@ -4,6 +4,7 @@ if not config.is_script_mode():
     from . import achievement
     from . import ad
     from . import album
+    from . import area
     from . import announce
     from . import award
     from . import background
@@ -45,12 +46,12 @@ if not config.is_script_mode():
     from . import user
     # CN wrappers are enabled by default because they are not honoka-style stubs:
     # they only translate CN action names/shapes into NPPS4's own gameplay systems.
-    if config.use_cn_wrappers():
+    if config.CONFIG_DATA.compat.cn_wrappers:
         from . import cn_wrappers
 
     # Keep honoka-inspired fallback stubs opt-in. They are useful for locating
     # CN-only calls, but enabling them by default can mask missing real gameplay
     # implementations and make compatibility testing look healthier than it is.
-    if config.use_cn_optional_stubs():
+    if config.CONFIG_DATA.compat.cn_optional_stubs:
         from . import cn_optional_stubs
     from .. import sif2export  # HACK
