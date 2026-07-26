@@ -1,7 +1,7 @@
 LoveArrow
 =====
 
-[![Python: 3.14](https://img.shields.io/badge/Python-3.14-blue)](https://www.python.org/)
+[![Python: 3.13](https://img.shields.io/badge/Python-3.13-blue)](https://www.python.org/)
 [![Static Type Checker: Pyright](https://img.shields.io/badge/Static%20Type%20Checker-Pyright-CEB98F)](https://github.com/microsoft/pyright)
 [![Code Style: Black](https://img.shields.io/badge/Code%20Style-Black-000000.svg)](https://github.com/psf/black)
 [![Build](https://github.com/DarkEnergyProcessor/NPPS4/actions/workflows/main.yml/badge.svg)](https://github.com/DarkEnergyProcessor/NPPS4/actions/workflows/main.yml)
