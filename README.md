@@ -1,4 +1,4 @@
-Null-Pointer Private Server: Revisited
+LoveArrow
 =====
 
 [![Python: 3.14](https://img.shields.io/badge/Python-3.14-blue)](https://www.python.org/)
@@ -8,202 +8,37 @@ Null-Pointer Private Server: Revisited
 
 WIP SIF1 v9.11 private server written in Python 3.12+ using FastAPI.
 
-Notes
------
+## Overview
 
-* This project is currently in need of funding.
+Basically just the original NPPS4 with CN client support.
 
-* Database schema changes constantly. Expect frequent database wipes.
+All for ZH language support and convenience.
 
-Requirements
------
+基本上就是原版的 NPPS4 加上了国服客户端支持。
 
-NPPS4 supports Python 3.12 and later. Python 3.11 and earlier is not supported.
+一切都是为了支持中文语言和便捷。
 
-Install Manually
-----
+## Usage
 
-1. Install Python 3.12 or later.
-2. Create virtual environment.
-3. Activate it.
-4. `pip install -r requirements.txt -r requirements-perf.txt`
+Choose the local path to ZH-CN data packs, generate honoka CN master DB, run the server
 
-Note: If you're using Termux, make sure to have Rust toolchain and remove `-r requirements-perf.txt`.
+For other operations, please refer to the original README: [README_Origin.md](https://github.com/HNKServer/LoveArrow/blob/master/README_Origin.md) 
 
-Install with Docker
------
+选择国服本地数据包路径，生成 honoka CN master DB，启动服务端
 
-If you want to build the container from source, run:
-```sh
-docker build -t npps4 .
-```
+对于其他操作，请参考原始 README：[README_Origin.md](https://github.com/HNKServer/LoveArrow/blob/master/README_Origin.md) 
 
-Or, if you want to use pre-compiled container as part of NPPS4 CI, run:
-```sh
-docker pull ghcr.io/darkenergyprocessor/npps4:latest
-```
+## Other files required
 
-Then run the container for the first time so it setup the necessary data in `path/to/data`:
+You can download ZH-CN Android data packs and CN Android client from here : [Android-CN](https://mega.nz/folder/X7JB3bwI#L9eLbOQsCLMkSK0TO3_hfw)
 
-```sh
-docker run --name npps4 -v path/to/data:/NPPS4/data -p 0.0.0.0:8080:8080 -it npps4
-```
+This client requires port 8080
 
-Configure `config.sample.toml` then **save it as `config.toml`** (or save the modified `config.sample.toml` first then
-rename it). Now re-run the container:
-```sh
-docker start npps4
-```
+你可以从此处下载安卓端中文数据包和安卓端国服客户端：[Android-CN](https://mega.nz/folder/X7JB3bwI#L9eLbOQsCLMkSK0TO3_hfw)
 
-Observe that the app is started successfully using:
-```sh
-docker logs npps4
-```
+此客户端需要的端口号为 8080
 
-Starting Up
------
+## Credits & Special Thanks
 
-Before starting the server, you need 3 things:
-1. Create configuration file.
-2. Get private key.
-3. Get client game database.
-
-### Create configuration file.
-
-Copy out `config.sample.toml` to `config.toml` and adjust as needed. The file has extensive comments on each
-configuration values.
-
-### Get private key.
-
-> [!WARNING]
-> A private key is required due to internal request-response verification done in the game.
-
-#### Using provided private key
-
-NPPS4 provides default private key which is used to develop other private servers by the community
-and compatible with community-patched APK.
-
-There's nothing to do to use this private key. This private key is used by default as per the sample configuration
-key `main.server_private_key`.
-
-The public key of the default server key is:
-```
------BEGIN PUBLIC KEY-----
-MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDE0RNd6047aeBirzVb61DolatY
-YWpaEUIPugOIkobHDc9qVR5iliMLyC0ErXO1siLBwN+U3zaDVOa5uhXbiS7uYq5c
-cpxComxTnZtcn/b+mKDpYWLaC0Gv7UoiT8rpNqN3Vko645usz9OFc4VciijsHGRP
-XmmmoP6qykfI/vba8wIDAQAB
------END PUBLIC KEY-----
-```
-
-#### Using your own private key
-
-> [!IMPORTANT]
-> The private key **must** be 1024-bit RSA stored in PEM format!
-
-If you already have your existing private key, simply put them as `server_key.pem`.
-
-To get the public key, run:
-
-```
-python make_server_key.py -p
-```
-
-#### Generating your own private key
-
-To generate a new private key, run:
-
-```sh
-python make_server_key.py
-```
-
-The public key, for your game client will be printed to stdout in PEM format. Patch your game to use the
-newly-provided public key.
-
-### Get client game database.
-
-There's 2 simple methods: Having local copy of SIF client files or loading it directly through internet.
-
-#### Create local copy
-
-First, follow the instruction at https://gist.github.com/MikuAuahDark/ece4eb73b3396403c6a2f11610a783b8.
-
-Then set the `download.backend` to `internal` and configure the `download.internal.archive_root` directory in the
-configuration file to your local copy of SIF client files.
-
-#### Loading directly from internet
-
-Look at the URL in https://gist.github.com/MikuAuahDark/ece4eb73b3396403c6a2f11610a783b8.
-
-Set the `download.backend` to `n4dlapi` and configure `download.n4dlapi.server` to the URL writen in above gist (not
-the gist itself).
-
-Database
------
-
-Please consult [SQLAlchemy supported database backends](https://docs.sqlalchemy.org/en/20/dialects/index.html) for
-more information. If in doubt, SQLite3 is a safe choice if you don't need performance as it's already a part of NPPS4
-required dependencies.
-
-Otherwise, install the additional dependencies depending on which backend you want to use. Ensure to install the 
-"async" version of the database packages!
-
-* SQLite3: `aiosqlite` (already installed)
-* PostgreSQL: `asyncpg`
-* MySQL/MariaDB: `asyncmy`
-
-Running
------
-
-After all is set, initialize the database:
-```sh
-alembic upgrade head
-```
-
-Then run the server
-```sh
-uvicorn npps4.run.app:main --port 8080 --host <your lan IP or 0.0.0.0>
-```
-
-If you need to run with multiple workers, you must additionally install `gunicorn` and `uvicorn-worker` Python package.
-```sh
-pip install gunicorn uvicorn-worker # only needs to be done once
-
-gunicorn --preload npps4.run.app:main -w 4 -k uvicorn_worker.UvicornWorker -b <your lan IP or 0.0.0.0>:8080
-```
-
-Updating
------
-
-Before updating, please ensure if database breakage is not happening. See [DBBREAKAGE.md](DBBREAKAGE.md) for
-information.
-
-If there's no database breakage or you already know a way to handle the breakage (either by doing stuff manually or
-destroying the database), run:
-
-```
-git pull --ff-only
-alembic upgrade head
-```
-
-Most changes requires a server restart. However, changes that only touch `server_data.json` does not require server
-restart as that particular file is hot-reloaded by the server.
-
-Client App
------
-
-To get compatible client, please look at https://ethanaobrien.github.io/sif-patcher/. Both iOS and Android are
-supported.
-
-Contribute
------
-
-See [CONTRIBUTE.md](CONTRIBUTE.md)
-
-
-License
------
-
-zLib license, excluding any files in `external/`.
-
-Public domain/unlicense, any files in `external/`.
+- **Author**: Dark Energy Processor [@DarkEnergyProcessor](https://github.com/DarkEnergyProcessor)
+- **Repository**: [Git - DarkEnergyProcessor/NPPS4](https://github.com/DarkEnergyProcessor/NPPS4)
