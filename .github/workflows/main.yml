@@ -316,8 +316,9 @@ jobs:
       - name: Create or update continuous release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          set -e
+          set -euo pipefail
           files=(
             pyinstaller-npps4-windows.zip
             pyinstaller-npps4-ubuntu-22.04.zip
@@ -326,10 +327,14 @@ jobs:
             npps4-dockerimage-aarch64.tar.gz
           )
 
-          if gh release view continuous >/dev/null 2>&1; then
-            gh release upload continuous "${files[@]}" --clobber
+          if gh release view continuous --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release upload continuous "${files[@]}" \
+              --clobber \
+              --repo "$GH_REPO"
           else
             gh release create continuous "${files[@]}" \
+              --repo "$GH_REPO" \
+              --target "$GITHUB_SHA" \
               --title "Continuous Build" \
               --notes "Automated build from the master branch." \
               --prerelease
