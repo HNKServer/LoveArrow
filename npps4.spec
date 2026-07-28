@@ -1,5 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
-import importlib.util
+
+# Keep runtime package data inside the PyInstaller bundle.  v5.32 reads these
+# files through importlib.resources, so a build without them can start but will
+# fail in the CN/GL Master, accessory, scouting and WebUI paths.
 
 a = Analysis(
     ["pyinstaller_bootstrap.py"],
@@ -8,6 +11,9 @@ a = Analysis(
     datas=[
         ("alembic.ini", "."),
         ("npps4/alembic", "npps4/alembic"),
+        ("npps4/assets", "npps4/assets"),
+        ("npps4/webui/static", "npps4/webui/static"),
+        ("npps4/server_data_schema.json", "npps4"),
     ],
     hiddenimports=[
         "aiosqlite",
@@ -43,6 +49,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+
 coll = COLLECT(
     exe,
     a.binaries,
