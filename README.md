@@ -20,11 +20,11 @@ All for ZH language support and convenience.
 
 ## Usage
 
-Choose the local path to ZH-CN data packs, generate honoka CN master DB, run the server
+Edit config.toml for the local path to ZH-CN data packs, generate honoka CN master DB (optional), run the server
 
 For other operations, please refer to the original README: [README_Origin.md](https://github.com/HNKServer/LoveArrow/blob/master/README_Origin.md) 
 
-选择国服本地数据包路径，生成 honoka CN master DB，启动服务端
+在 config.toml 中添加国服本地数据包路径，生成 honoka CN master DB（可选），启动服务端
 
 对于其他操作，请参考原始 README：[README_Origin.md](https://github.com/HNKServer/LoveArrow/blob/master/README_Origin.md) 
 
@@ -44,5 +44,17 @@ Both clients require working at port 8080
 
 ## Credits & Special Thanks
 
+### Origin
+
 - **Author**: Dark Energy Processor [@DarkEnergyProcessor](https://github.com/DarkEnergyProcessor)
 - **Repository**: [Git - DarkEnergyProcessor/NPPS4](https://github.com/DarkEnergyProcessor/NPPS4)
+
+### Reference
+
+- **Author**: YumeMichi [@YumeMichi](https://github.com/YumeMichi)
+- **Repository**: [Git - YumeMichi/honoka-chan](https://github.com/YumeMichi/honoka-chan)
+
+- **Author**: HenTaku (dic1911) [@dic1911](https://gitlab.com/dic1911)
+- **Repository**: [Git - dic1911/LLSIF.local](https://gitlab.com/dic1911/LLSIF.local)
+
+And many other contributors who made their efforts toward the same goal to make this miracle possible!
